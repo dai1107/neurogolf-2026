@@ -1,0 +1,551 @@
+{
+  "task_id": "task081",
+  "status": "solved",
+  "best_rule": "LocalNeighborhoodFillRule",
+  "model_path": "outputs\\onnx\\task081.onnx",
+  "num_candidates": 2,
+  "num_valid_candidates": 2,
+  "estimated_cost": 565,
+  "estimated_score": 18.66317426885356,
+  "file_size_bytes": 1476,
+  "failure_reasons": [
+    {
+      "rule": "IdentityRule",
+      "reason": "input_output_not_identical"
+    },
+    {
+      "rule": "ColorMapRule",
+      "reason": "inconsistent mapping for color 0: 0 vs 1 at case 0, row 1, col 2"
+    },
+    {
+      "rule": "OneStepTranslationRule",
+      "reason": "no one-step translation matches all train cases"
+    },
+    {
+      "rule": "MirrorRule",
+      "reason": "no mirror mode matches all train cases"
+    },
+    {
+      "rule": "DynamicActiveMirrorRule",
+      "reason": "no active mirror mode matches all train cases"
+    },
+    {
+      "rule": "RotateRule",
+      "reason": "no rotation matches all train cases"
+    },
+    {
+      "rule": "CropRule",
+      "reason": "no fixed crop matches all train cases"
+    },
+    {
+      "rule": "ScaleRepeatRule",
+      "reason": "no fixed scale repeat matches all train cases"
+    },
+    {
+      "rule": "StridedSubsampleRule",
+      "reason": "no fixed strided sample matches all train cases"
+    },
+    {
+      "rule": "TileRepeatRule",
+      "reason": "tile factor is identity"
+    },
+    {
+      "rule": "MirrorConcatRule",
+      "reason": "no mirror concat pattern matches all train cases"
+    },
+    {
+      "rule": "SelfKronMaskRule",
+      "reason": "output_shape_is_not_self_kron_size"
+    },
+    {
+      "rule": "GeneralizedPanelRule",
+      "reason": "no generalized panel layout found"
+    },
+    {
+      "rule": "PanelSeparatorBinaryOpRule",
+      "reason": "no complete equal-size panel separator found"
+    },
+    {
+      "rule": "PanelSelectByColorRule",
+      "reason": "no panel selection matches all train cases"
+    },
+    {
+      "rule": "PeriodicExtensionColorMapRule",
+      "reason": "periodic_extension_output_size_is_identity"
+    },
+    {
+      "rule": "HoleFillRule",
+      "reason": "no hole fill matches all train cases"
+    },
+    {
+      "rule": "SubstructureExtractRule",
+      "reason": "no substructure color map matches all train cases"
+    },
+    {
+      "rule": "TileFromBBoxRepeatRule",
+      "reason": "no shared bbox tile repeat matches all train cases"
+    },
+    {
+      "rule": "MultiStepTranslationRule",
+      "reason": "no multi-step translation matches all train cases"
+    },
+    {
+      "rule": "SymmetryCompletionRule",
+      "reason": "no symmetry completion matches all train cases"
+    },
+    {
+      "rule": "RectangleAndLineRule",
+      "reason": "no rectangle or line transform matches all train cases"
+    },
+    {
+      "rule": "ObjectSelectionRule",
+      "reason": "no object selection matches all train cases"
+    },
+    {
+      "rule": "DynamicNonBackgroundBBoxCropRule",
+      "reason": "no dynamic non-background bbox crop matches all train cases"
+    },
+    {
+      "rule": "DynamicBBoxExtremeColorSwapRule",
+      "reason": "no dynamic bbox extreme color swap matches all train cases"
+    }
+  ],
+  "analysis_summary": {
+    "num_train_cases": 2,
+    "input_shapes": [
+      [
+        7,
+        7
+      ],
+      [
+        7,
+        7
+      ]
+    ],
+    "output_shapes": [
+      [
+        7,
+        7
+      ],
+      [
+        7,
+        7
+      ]
+    ],
+    "colors": [
+      0,
+      1,
+      8
+    ],
+    "all_input_output_shapes_equal": true
+  },
+  "matches": [
+    {
+      "rule_name": "IdentityRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "input_output_not_identical",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ColorMapRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "inconsistent mapping for color 0: 0 vs 1 at case 0, row 1, col 2",
+      "metadata": {}
+    },
+    {
+      "rule_name": "OneStepTranslationRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no one-step translation matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "MirrorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no mirror mode matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "DynamicActiveMirrorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no active mirror mode matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "RotateRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no rotation matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "CropRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no fixed crop matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ScaleRepeatRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no fixed scale repeat matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "StridedSubsampleRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no fixed strided sample matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "TileRepeatRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "tile factor is identity",
+      "metadata": {}
+    },
+    {
+      "rule_name": "MirrorConcatRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no mirror concat pattern matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "SelfKronMaskRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "output_shape_is_not_self_kron_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "GeneralizedPanelRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no generalized panel layout found",
+      "metadata": {}
+    },
+    {
+      "rule_name": "PanelSeparatorBinaryOpRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no complete equal-size panel separator found",
+      "metadata": {}
+    },
+    {
+      "rule_name": "PanelSelectByColorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no panel selection matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "PeriodicExtensionColorMapRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "periodic_extension_output_size_is_identity",
+      "metadata": {}
+    },
+    {
+      "rule_name": "HoleFillRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no hole fill matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "LocalNeighborhoodFillRule",
+      "matched": true,
+      "confidence": "MATCH",
+      "reason": "matched local background fill bg=0, fill=1, source=non_background, offsets=cardinal4, eq2",
+      "metadata": {
+        "background_color": 0,
+        "fill_color": 1,
+        "source_mode": "non_background",
+        "source_colors": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "offset_name": "cardinal4",
+        "offsets": [
+          [
+            -1,
+            0
+          ],
+          [
+            0,
+            -1
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "condition": "eq",
+        "threshold": 2
+      }
+    },
+    {
+      "rule_name": "SubstructureExtractRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no substructure color map matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "TileFromBBoxRepeatRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no shared bbox tile repeat matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "MultiStepTranslationRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no multi-step translation matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "SymmetryCompletionRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no symmetry completion matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "RectangleAndLineRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no rectangle or line transform matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ObjectSelectionRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no object selection matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "LocalNeighborhoodRewriteRule",
+      "matched": true,
+      "confidence": "MATCH",
+      "reason": "matched local rewrite target=0, replacement=1, source=color_8, offsets=cardinal4, eq2",
+      "metadata": {
+        "target_color": 0,
+        "replacement_color": 1,
+        "source_mode": "color_8",
+        "source_colors": [
+          8
+        ],
+        "offset_name": "cardinal4",
+        "offsets": [
+          [
+            -1,
+            0
+          ],
+          [
+            0,
+            -1
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "condition": "eq",
+        "threshold": 2
+      }
+    },
+    {
+      "rule_name": "DynamicNonBackgroundBBoxCropRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no dynamic non-background bbox crop matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "DynamicBBoxExtremeColorSwapRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no dynamic bbox extreme color swap matches all train cases",
+      "metadata": {}
+    }
+  ],
+  "candidates": [
+    {
+      "task_id": "task081",
+      "rule_name": "LocalNeighborhoodFillRule",
+      "priority": 13,
+      "model_path": "outputs\\candidates\\task081_LocalNeighborhoodFillRule.onnx",
+      "metadata": {
+        "background_color": 0,
+        "fill_color": 1,
+        "source_mode": "non_background",
+        "source_colors": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "offset_name": "cardinal4",
+        "offsets": [
+          [
+            -1,
+            0
+          ],
+          [
+            0,
+            -1
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "condition": "eq",
+        "threshold": 2
+      },
+      "onnx_checker_ok": true,
+      "num_parameters": 113,
+      "initializer_memory_bytes": 452,
+      "file_size_bytes": 1476,
+      "estimated_cost": 565,
+      "estimated_score": 18.66317426885356,
+      "file_size_ok": true,
+      "forbidden_ops_ok": true,
+      "forbidden_ops_found": [],
+      "static_shapes_ok": true,
+      "static_shape_failures": [],
+      "validation_passed": true,
+      "validation": {
+        "passed": true,
+        "num_cases": 2,
+        "failed_cases": [],
+        "case_results": [
+          {
+            "case_index": 0,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          },
+          {
+            "case_index": 1,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          }
+        ]
+      },
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "task_id": "task081",
+      "rule_name": "LocalNeighborhoodRewriteRule",
+      "priority": 18,
+      "model_path": "outputs\\candidates\\task081_LocalNeighborhoodRewriteRule.onnx",
+      "metadata": {
+        "target_color": 0,
+        "replacement_color": 1,
+        "source_mode": "color_8",
+        "source_colors": [
+          8
+        ],
+        "offset_name": "cardinal4",
+        "offsets": [
+          [
+            -1,
+            0
+          ],
+          [
+            0,
+            -1
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "condition": "eq",
+        "threshold": 2
+      },
+      "onnx_checker_ok": true,
+      "num_parameters": 113,
+      "initializer_memory_bytes": 452,
+      "file_size_bytes": 1535,
+      "estimated_cost": 565,
+      "estimated_score": 18.66317426885356,
+      "file_size_ok": true,
+      "forbidden_ops_ok": true,
+      "forbidden_ops_found": [],
+      "static_shapes_ok": true,
+      "static_shape_failures": [],
+      "validation_passed": true,
+      "validation": {
+        "passed": true,
+        "num_cases": 2,
+        "failed_cases": [],
+        "case_results": [
+          {
+            "case_index": 0,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          },
+          {
+            "case_index": 1,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          }
+        ]
+      },
+      "passed": true,
+      "failure_reasons": []
+    }
+  ]
+}

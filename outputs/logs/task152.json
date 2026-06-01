@@ -1,0 +1,363 @@
+{
+  "task_id": "task152",
+  "status": "failed",
+  "best_rule": null,
+  "model_path": null,
+  "num_candidates": 0,
+  "num_valid_candidates": 0,
+  "estimated_cost": null,
+  "estimated_score": null,
+  "file_size_bytes": null,
+  "failure_reasons": [
+    {
+      "rule": "IdentityRule",
+      "reason": "output_size_differs_from_input_size"
+    },
+    {
+      "rule": "ColorMapRule",
+      "reason": "output_size_differs_from_input_size"
+    },
+    {
+      "rule": "OneStepTranslationRule",
+      "reason": "output_size_differs_from_input_size"
+    },
+    {
+      "rule": "MirrorRule",
+      "reason": "output_size_differs_from_input_size"
+    },
+    {
+      "rule": "DynamicActiveMirrorRule",
+      "reason": "dynamic_active_mirror_requires_same_size"
+    },
+    {
+      "rule": "RotateRule",
+      "reason": "output_size_differs_from_input_size"
+    },
+    {
+      "rule": "CropRule",
+      "reason": "no fixed crop matches all train cases"
+    },
+    {
+      "rule": "ScaleRepeatRule",
+      "reason": "no fixed scale repeat matches all train cases"
+    },
+    {
+      "rule": "StridedSubsampleRule",
+      "reason": "no fixed strided sample matches all train cases"
+    },
+    {
+      "rule": "TileRepeatRule",
+      "reason": "tile repeat does not match all train cases"
+    },
+    {
+      "rule": "MirrorConcatRule",
+      "reason": "no mirror concat pattern matches all train cases"
+    },
+    {
+      "rule": "SelfKronMaskRule",
+      "reason": "output_shape_is_not_self_kron_size"
+    },
+    {
+      "rule": "GeneralizedPanelRule",
+      "reason": "no generalized panel layout found"
+    },
+    {
+      "rule": "PanelSeparatorBinaryOpRule",
+      "reason": "no complete equal-size panel separator found"
+    },
+    {
+      "rule": "PanelSelectByColorRule",
+      "reason": "no panel selection matches all train cases"
+    },
+    {
+      "rule": "PeriodicExtensionColorMapRule",
+      "reason": "no periodic extension color map matches all train cases"
+    },
+    {
+      "rule": "HoleFillRule",
+      "reason": "hole_fill_requires_same_input_output_size"
+    },
+    {
+      "rule": "LocalNeighborhoodFillRule",
+      "reason": "local_fill_requires_same_input_output_size"
+    },
+    {
+      "rule": "SubstructureExtractRule",
+      "reason": "no shared substructure window can cover all train cases"
+    },
+    {
+      "rule": "TileFromBBoxRepeatRule",
+      "reason": "no shared bbox tile repeat matches all train cases"
+    },
+    {
+      "rule": "MultiStepTranslationRule",
+      "reason": "multi_step_translation_requires_same_size"
+    },
+    {
+      "rule": "SymmetryCompletionRule",
+      "reason": "symmetry_completion_requires_same_size"
+    },
+    {
+      "rule": "RectangleAndLineRule",
+      "reason": "rectangle_line_requires_same_size"
+    },
+    {
+      "rule": "ObjectSelectionRule",
+      "reason": "no object selection matches all train cases"
+    },
+    {
+      "rule": "LocalNeighborhoodRewriteRule",
+      "reason": "local_rewrite_requires_same_size"
+    },
+    {
+      "rule": "DynamicNonBackgroundBBoxCropRule",
+      "reason": "no dynamic non-background bbox crop matches all train cases"
+    },
+    {
+      "rule": "DynamicBBoxExtremeColorSwapRule",
+      "reason": "no dynamic bbox extreme color swap matches all train cases"
+    }
+  ],
+  "analysis_summary": {
+    "num_train_cases": 4,
+    "input_shapes": [
+      [
+        3,
+        3
+      ],
+      [
+        3,
+        3
+      ],
+      [
+        3,
+        3
+      ],
+      [
+        3,
+        3
+      ]
+    ],
+    "output_shapes": [
+      [
+        6,
+        6
+      ],
+      [
+        6,
+        6
+      ],
+      [
+        6,
+        6
+      ],
+      [
+        6,
+        6
+      ]
+    ],
+    "colors": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "all_input_output_shapes_equal": false
+  },
+  "matches": [
+    {
+      "rule_name": "IdentityRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "output_size_differs_from_input_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ColorMapRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "output_size_differs_from_input_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "OneStepTranslationRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "output_size_differs_from_input_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "MirrorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "output_size_differs_from_input_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "DynamicActiveMirrorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "dynamic_active_mirror_requires_same_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "RotateRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "output_size_differs_from_input_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "CropRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no fixed crop matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ScaleRepeatRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no fixed scale repeat matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "StridedSubsampleRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no fixed strided sample matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "TileRepeatRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "tile repeat does not match all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "MirrorConcatRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no mirror concat pattern matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "SelfKronMaskRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "output_shape_is_not_self_kron_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "GeneralizedPanelRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no generalized panel layout found",
+      "metadata": {}
+    },
+    {
+      "rule_name": "PanelSeparatorBinaryOpRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no complete equal-size panel separator found",
+      "metadata": {}
+    },
+    {
+      "rule_name": "PanelSelectByColorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no panel selection matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "PeriodicExtensionColorMapRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no periodic extension color map matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "HoleFillRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "hole_fill_requires_same_input_output_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "LocalNeighborhoodFillRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "local_fill_requires_same_input_output_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "SubstructureExtractRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no shared substructure window can cover all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "TileFromBBoxRepeatRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no shared bbox tile repeat matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "MultiStepTranslationRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "multi_step_translation_requires_same_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "SymmetryCompletionRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "symmetry_completion_requires_same_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "RectangleAndLineRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "rectangle_line_requires_same_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ObjectSelectionRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no object selection matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "LocalNeighborhoodRewriteRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "local_rewrite_requires_same_size",
+      "metadata": {}
+    },
+    {
+      "rule_name": "DynamicNonBackgroundBBoxCropRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no dynamic non-background bbox crop matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "DynamicBBoxExtremeColorSwapRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no dynamic bbox extreme color swap matches all train cases",
+      "metadata": {}
+    }
+  ],
+  "candidates": []
+}

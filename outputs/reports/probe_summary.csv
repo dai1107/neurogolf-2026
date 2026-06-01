@@ -1,0 +1,19 @@
+rule_name,scanned_tasks,matched_count,matched_tasks,exception_count
+GeneralizedPanelRule,349,0,,0
+PanelSeparatorBinaryOpRule,349,0,,0
+PanelSelectByColorRule,349,0,,0
+PeriodicExtensionColorMapRule,349,0,,0
+HoleFillRule,349,0,,0
+LocalNeighborhoodFillRule,349,0,,0
+SubstructureExtractRule,349,0,,0
+TileFromBBoxRepeatRule,349,0,,0
+MultiStepTranslationRule,349,0,,0
+SymmetryCompletionRule,349,0,,0
+RectangleAndLineRule,349,0,,0
+ObjectSelectionRule,349,0,,0
+LocalNeighborhoodRewriteRule,349,0,,0
+PanelSemanticRule,349,2,task065 task207,0
+DynamicBBoxCropRule,349,2,task036 task174,0
+FrameInteriorRule,349,5,task036 task079 task100 task153 task174,0
+ObjectEditRule,349,0,,0
+ComposedRuleSearch,349,2,task036 task174,0
