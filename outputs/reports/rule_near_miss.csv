@@ -54,7 +54,6 @@ task061,GeneralizedPanelRule,panel_rule_near_miss,,4,,no generalized panel layou
 task062,GeneralizedPanelRule,panel_rule_near_miss,,4,,no generalized panel layout found,Add panel selection/extraction probes beyond binary AND/OR/XOR panel operations.
 task063,OneStepTranslationRule,blocked_by_shared_shape,,3,,translation_requires_one_shared_grid_size,Remove cross-case shared-shape requirement; operate on padded 30x30 with active-cell semantics.
 task064,OneStepTranslationRule,blocked_by_shared_shape,,4,,translation_requires_one_shared_grid_size,Remove cross-case shared-shape requirement; operate on padded 30x30 with active-cell semantics.
-task065,CropRule,blocked_by_shared_output_shape,,3,,crop_requires_one_shared_output_size,Allow per-case output shape when the rule semantics can infer active output area safely.
 task066,OneStepTranslationRule,blocked_by_shared_shape,,3,,translation_requires_one_shared_grid_size,Remove cross-case shared-shape requirement; operate on padded 30x30 with active-cell semantics.
 task067,CropRule,blocked_by_shared_output_shape,,3,,crop_requires_one_shared_output_size,Allow per-case output shape when the rule semantics can infer active output area safely.
 task068,GeneralizedPanelRule,panel_rule_near_miss,,3,,no generalized panel layout found,Add panel selection/extraction probes beyond binary AND/OR/XOR panel operations.
@@ -179,7 +178,6 @@ task203,OneStepTranslationRule,blocked_by_shared_shape,,4,,translation_requires_
 task204,OneStepTranslationRule,blocked_by_shared_shape,,5,,translation_requires_one_shared_grid_size,Remove cross-case shared-shape requirement; operate on padded 30x30 with active-cell semantics.
 task205,CropRule,blocked_by_shared_output_shape,,3,,crop_requires_one_shared_output_size,Allow per-case output shape when the rule semantics can infer active output area safely.
 task206,OneStepTranslationRule,blocked_by_shared_shape,,3,,translation_requires_one_shared_grid_size,Remove cross-case shared-shape requirement; operate on padded 30x30 with active-cell semantics.
-task207,GeneralizedPanelRule,panel_rule_near_miss,,3,,no generalized panel extraction or operation matches all train cases,Add panel selection/extraction probes beyond binary AND/OR/XOR panel operations.
 task208,GeneralizedPanelRule,panel_rule_near_miss,,3,,no generalized panel layout found,Add panel selection/extraction probes beyond binary AND/OR/XOR panel operations.
 task209,CropRule,blocked_by_shared_output_shape,,3,,crop_requires_one_shared_output_size,Allow per-case output shape when the rule semantics can infer active output area safely.
 task211,GeneralizedPanelRule,panel_rule_near_miss,,3,,no generalized panel layout found,Add panel selection/extraction probes beyond binary AND/OR/XOR panel operations.

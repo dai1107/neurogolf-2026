@@ -536,6 +536,134 @@ def build_dynamic_non_background_bbox_crop_model(
     )
 
 
+def build_dynamic_color_bbox_crop_model(
+    selected_color: int,
+    color_map: dict[int, int],
+    output_path: str,
+    transform: str = "identity",
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Build a dynamic crop of the bbox covering all cells of one color."""
+    if selected_color < 0 or selected_color >= num_channels:
+        raise ValueError(f"selected_color must be within 0..{num_channels - 1}")
+    if transform not in {"identity", "mirror_horizontal", "mirror_vertical"}:
+        raise ValueError("transform must be identity, mirror_horizontal, or mirror_vertical")
+
+    full_map: list[int] = []
+    for old_color in range(num_channels):
+        new_color = int(color_map.get(old_color, old_color))
+        if new_color < 0 or new_color >= num_channels:
+            raise ValueError(f"mapped color {new_color} is outside 0..{num_channels - 1}")
+        full_map.append(new_color)
+
+    select_weights = np.zeros((1, num_channels, 1, 1), dtype=np.float32)
+    select_weights[0, selected_color, 0, 0] = 1.0
+    color_weights = np.zeros((num_channels, num_channels, 1, 1), dtype=np.float32)
+    for old_color, new_color in enumerate(full_map):
+        color_weights[new_color, old_color, 0, 0] = 1.0
+
+    offsets = np.arange(height, dtype=np.int64)
+    reverse_indices = np.arange(height - 1, -1, -1, dtype=np.int64)
+    one = np.array(1, dtype=np.int64)
+    last_index = np.array(height - 1, dtype=np.int64)
+    zero_threshold = np.array(0.0, dtype=np.float32)
+
+    initializers = [
+        numpy_helper.from_array(select_weights, name="SelectW"),
+        numpy_helper.from_array(color_weights, name="ColorW"),
+        numpy_helper.from_array(zero_threshold, name="Zero"),
+        numpy_helper.from_array(offsets, name="Offsets"),
+        numpy_helper.from_array(reverse_indices, name="ReverseIndices"),
+        numpy_helper.from_array(one, name="One"),
+        numpy_helper.from_array(last_index, name="LastIndex"),
+    ]
+    if transform == "mirror_vertical":
+        row_source_nodes = [
+            helper.make_node("Sub", ["bottom", "Offsets"], ["raw_rows"], name="raw_rows"),
+            helper.make_node("Where", ["valid_rows", "raw_rows", "top"], ["source_rows"], name="source_rows"),
+        ]
+    else:
+        row_source_nodes = [
+            helper.make_node("Add", ["Offsets", "top"], ["raw_rows"], name="raw_rows"),
+            helper.make_node("Where", ["valid_rows", "raw_rows", "top"], ["source_rows"], name="source_rows"),
+        ]
+    if transform == "mirror_horizontal":
+        col_source_nodes = [
+            helper.make_node("Sub", ["right", "Offsets"], ["raw_cols"], name="raw_cols"),
+            helper.make_node("Where", ["valid_cols", "raw_cols", "left"], ["source_cols"], name="source_cols"),
+        ]
+    else:
+        col_source_nodes = [
+            helper.make_node("Add", ["Offsets", "left"], ["raw_cols"], name="raw_cols"),
+            helper.make_node("Where", ["valid_cols", "raw_cols", "left"], ["source_cols"], name="source_cols"),
+        ]
+
+    nodes = [
+        helper.make_node(
+            "Conv",
+            ["input", "SelectW"],
+            ["selected_sum"],
+            name="selected_sum",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        helper.make_node("Greater", ["selected_sum", "Zero"], ["selected_bool"], name="selected_bool"),
+        _cast_to_float("selected_bool", "selected_float"),
+        helper.make_node("ReduceSum", ["selected_float"], ["row_sum"], name="row_sum", axes=[3], keepdims=0),
+        helper.make_node("ReduceSum", ["selected_float"], ["col_sum"], name="col_sum", axes=[2], keepdims=0),
+        helper.make_node("Greater", ["row_sum", "Zero"], ["row_any"], name="row_any"),
+        helper.make_node("Greater", ["col_sum", "Zero"], ["col_any"], name="col_any"),
+        _cast_to_float("row_any", "row_any_float"),
+        _cast_to_float("col_any", "col_any_float"),
+        helper.make_node("ArgMax", ["row_any_float"], ["top_keep"], name="top_keep", axis=2, keepdims=0),
+        helper.make_node("ArgMax", ["col_any_float"], ["left_keep"], name="left_keep", axis=2, keepdims=0),
+        helper.make_node("Gather", ["row_any_float", "ReverseIndices"], ["row_any_reverse"], name="row_any_reverse", axis=2),
+        helper.make_node("Gather", ["col_any_float", "ReverseIndices"], ["col_any_reverse"], name="col_any_reverse", axis=2),
+        helper.make_node("ArgMax", ["row_any_reverse"], ["bottom_distance_keep"], name="bottom_distance_keep", axis=2, keepdims=0),
+        helper.make_node("ArgMax", ["col_any_reverse"], ["right_distance_keep"], name="right_distance_keep", axis=2, keepdims=0),
+        helper.make_node("Squeeze", ["top_keep"], ["top"], name="top", axes=[0, 1]),
+        helper.make_node("Squeeze", ["left_keep"], ["left"], name="left", axes=[0, 1]),
+        helper.make_node("Squeeze", ["bottom_distance_keep"], ["bottom_distance"], name="bottom_distance", axes=[0, 1]),
+        helper.make_node("Squeeze", ["right_distance_keep"], ["right_distance"], name="right_distance", axes=[0, 1]),
+        helper.make_node("Sub", ["LastIndex", "bottom_distance"], ["bottom"], name="bottom"),
+        helper.make_node("Sub", ["LastIndex", "right_distance"], ["right"], name="right"),
+        helper.make_node("Sub", ["bottom", "top"], ["bbox_height_minus_one"], name="bbox_height_minus_one"),
+        helper.make_node("Sub", ["right", "left"], ["bbox_width_minus_one"], name="bbox_width_minus_one"),
+        helper.make_node("Add", ["bbox_height_minus_one", "One"], ["bbox_height"], name="bbox_height"),
+        helper.make_node("Add", ["bbox_width_minus_one", "One"], ["bbox_width"], name="bbox_width"),
+        helper.make_node("Less", ["Offsets", "bbox_height"], ["valid_rows"], name="valid_rows"),
+        helper.make_node("Less", ["Offsets", "bbox_width"], ["valid_cols"], name="valid_cols"),
+        *row_source_nodes,
+        *col_source_nodes,
+        helper.make_node("Unsqueeze", ["valid_rows"], ["valid_rows_2d"], name="valid_rows_2d", axes=[1]),
+        helper.make_node("Unsqueeze", ["valid_cols"], ["valid_cols_2d"], name="valid_cols_2d", axes=[0]),
+        helper.make_node("And", ["valid_rows_2d", "valid_cols_2d"], ["active_bool"], name="active_bool"),
+        helper.make_node("Gather", ["input", "source_rows"], ["gather_rows"], name="gather_rows", axis=2),
+        helper.make_node("Gather", ["gather_rows", "source_cols"], ["remapped"], name="remapped", axis=3),
+        helper.make_node(
+            "Conv",
+            ["remapped", "ColorW"],
+            ["mapped"],
+            name="mapped",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        _cast_to_float("active_bool", "active_float"),
+        helper.make_node("Mul", ["mapped", "active_float"], ["output"], name="output"),
+    ]
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        f"dynamic_color_bbox_crop_{transform}",
+        num_channels,
+        height,
+        width,
+    )
+
+
 def build_dynamic_active_mirror_model(
     mode: str,
     output_path: str,
@@ -626,6 +754,341 @@ def build_dynamic_active_mirror_model(
         nodes,
         initializers,
         f"dynamic_active_mirror_{mode}",
+        num_channels,
+        height,
+        width,
+    )
+
+
+def build_dynamic_quadrant_panel_select_model(
+    color_map: dict[int, int],
+    output_path: str,
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Build a dynamic 2x2 center-cross panel selector.
+
+    The selected panel is the quadrant whose pattern has a unique maximum
+    summed difference from the other three quadrants. Supported active inputs
+    are odd square grids up to 29x29 with a one-cell center separator.
+    """
+    full_map: list[int] = []
+    for old_color in range(num_channels):
+        new_color = int(color_map.get(old_color, old_color))
+        if new_color < 0 or new_color >= num_channels:
+            raise ValueError(f"mapped color {new_color} is outside 0..{num_channels - 1}")
+        full_map.append(new_color)
+
+    color_weights = np.zeros((num_channels, num_channels, 1, 1), dtype=np.float32)
+    for old_color, new_color in enumerate(full_map):
+        color_weights[new_color, old_color, 0, 0] = 1.0
+
+    ones = np.ones((1, num_channels, 1, 1), dtype=np.float32)
+    zero = np.array(0.0, dtype=np.float32)
+    initializers = [
+        numpy_helper.from_array(ones, name="ActiveW"),
+        numpy_helper.from_array(zero, name="Zero"),
+        numpy_helper.from_array(color_weights, name="ColorW"),
+    ]
+    nodes: list[onnx.NodeProto] = [
+        helper.make_node(
+            "Conv",
+            ["input", "ActiveW"],
+            ["active_sum"],
+            name="active_sum",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        helper.make_node("Greater", ["active_sum", "Zero"], ["active_bool"], name="active_bool"),
+        _cast_to_float("active_bool", "active_float"),
+        helper.make_node("ReduceSum", ["active_float"], ["active_total"], name="active_total", axes=[1, 2, 3], keepdims=0),
+    ]
+
+    selected_by_size: list[str] = []
+    max_panel_size = (min(height, width) - 1) // 2
+    for panel_size in range(1, max_panel_size + 1):
+        active_size = panel_size * 2 + 1
+        low_name = f"Size{panel_size}Low"
+        high_name = f"Size{panel_size}High"
+        active_area = float(active_size * active_size)
+        initializers.append(numpy_helper.from_array(np.array(active_area - 0.5, dtype=np.float32), name=low_name))
+        initializers.append(numpy_helper.from_array(np.array(active_area + 0.5, dtype=np.float32), name=high_name))
+        nodes.append(helper.make_node("Greater", ["active_total", low_name], [f"p{panel_size}_above_low"], name=f"p{panel_size}_above_low"))
+        nodes.append(helper.make_node("Less", ["active_total", high_name], [f"p{panel_size}_below_high"], name=f"p{panel_size}_below_high"))
+        nodes.append(
+            helper.make_node(
+                "And",
+                [f"p{panel_size}_above_low", f"p{panel_size}_below_high"],
+                [f"p{panel_size}_active_bool"],
+                name=f"p{panel_size}_active_bool",
+            )
+        )
+        nodes.append(_cast_to_float(f"p{panel_size}_active_bool", f"p{panel_size}_active"))
+
+        mask = np.zeros((1, 1, height, width), dtype=np.float32)
+        mask[:, :, :panel_size, :panel_size] = 1.0
+        initializers.append(numpy_helper.from_array(mask, name=f"PanelMask{panel_size}"))
+
+        panel_names: list[str] = []
+        starts = [
+            (0, 0),
+            (0, panel_size + 1),
+            (panel_size + 1, 0),
+            (panel_size + 1, panel_size + 1),
+        ]
+        for panel_index, (row_start, col_start) in enumerate(starts):
+            rows = np.zeros((height,), dtype=np.int64)
+            cols = np.zeros((width,), dtype=np.int64)
+            rows[:panel_size] = np.arange(row_start, row_start + panel_size, dtype=np.int64)
+            cols[:panel_size] = np.arange(col_start, col_start + panel_size, dtype=np.int64)
+            initializers.append(numpy_helper.from_array(rows, name=f"P{panel_size}Q{panel_index}Rows"))
+            initializers.append(numpy_helper.from_array(cols, name=f"P{panel_size}Q{panel_index}Cols"))
+            nodes.append(
+                helper.make_node(
+                    "Gather",
+                    ["input", f"P{panel_size}Q{panel_index}Rows"],
+                    [f"p{panel_size}_q{panel_index}_rows"],
+                    name=f"p{panel_size}_q{panel_index}_rows",
+                    axis=2,
+                )
+            )
+            nodes.append(
+                helper.make_node(
+                    "Gather",
+                    [f"p{panel_size}_q{panel_index}_rows", f"P{panel_size}Q{panel_index}Cols"],
+                    [f"p{panel_size}_q{panel_index}_raw"],
+                    name=f"p{panel_size}_q{panel_index}_raw",
+                    axis=3,
+                )
+            )
+            panel_name = f"p{panel_size}_q{panel_index}"
+            nodes.append(
+                helper.make_node(
+                    "Mul",
+                    [f"p{panel_size}_q{panel_index}_raw", f"PanelMask{panel_size}"],
+                    [panel_name],
+                    name=panel_name,
+                )
+            )
+            panel_names.append(panel_name)
+
+        pair_diffs: dict[tuple[int, int], str] = {}
+        for left in range(4):
+            for right in range(left + 1, 4):
+                diff_name = f"p{panel_size}_d{left}{right}"
+                nodes.append(
+                    helper.make_node(
+                        "Sub",
+                        [panel_names[left], panel_names[right]],
+                        [f"{diff_name}_raw"],
+                        name=f"{diff_name}_raw",
+                    )
+                )
+                nodes.append(helper.make_node("Abs", [f"{diff_name}_raw"], [f"{diff_name}_abs"], name=f"{diff_name}_abs"))
+                nodes.append(
+                    helper.make_node(
+                        "ReduceSum",
+                        [f"{diff_name}_abs"],
+                        [diff_name],
+                        name=diff_name,
+                        axes=[1, 2, 3],
+                        keepdims=0,
+                    )
+                )
+                pair_diffs[(left, right)] = diff_name
+
+        scores: list[str] = []
+        for panel_index in range(4):
+            pieces = [
+                pair_diffs[(min(panel_index, other), max(panel_index, other))]
+                for other in range(4)
+                if other != panel_index
+            ]
+            score_name = f"p{panel_size}_score{panel_index}"
+            nodes.append(helper.make_node("Add", [pieces[0], pieces[1]], [f"{score_name}_partial"], name=f"{score_name}_partial"))
+            nodes.append(helper.make_node("Add", [f"{score_name}_partial", pieces[2]], [score_name], name=score_name))
+            scores.append(score_name)
+
+        selected_quadrants: list[str] = []
+        for panel_index in range(4):
+            comparisons: list[str] = []
+            for other in range(4):
+                if other == panel_index:
+                    continue
+                cmp_name = f"p{panel_size}_q{panel_index}_gt{other}"
+                nodes.append(helper.make_node("Greater", [scores[panel_index], scores[other]], [cmp_name], name=cmp_name))
+                comparisons.append(cmp_name)
+            nodes.append(
+                helper.make_node(
+                    "And",
+                    [comparisons[0], comparisons[1]],
+                    [f"p{panel_size}_q{panel_index}_gt01"],
+                    name=f"p{panel_size}_q{panel_index}_gt01",
+                )
+            )
+            nodes.append(
+                helper.make_node(
+                    "And",
+                    [f"p{panel_size}_q{panel_index}_gt01", comparisons[2]],
+                    [f"p{panel_size}_q{panel_index}_selected_bool"],
+                    name=f"p{panel_size}_q{panel_index}_selected_bool",
+                )
+            )
+            nodes.append(_cast_to_float(f"p{panel_size}_q{panel_index}_selected_bool", f"p{panel_size}_q{panel_index}_selected"))
+            selected_name = f"p{panel_size}_q{panel_index}_weighted"
+            nodes.append(
+                helper.make_node(
+                    "Mul",
+                    [panel_names[panel_index], f"p{panel_size}_q{panel_index}_selected"],
+                    [selected_name],
+                    name=selected_name,
+                )
+            )
+            selected_quadrants.append(selected_name)
+
+        nodes.append(helper.make_node("Add", [selected_quadrants[0], selected_quadrants[1]], [f"p{panel_size}_sum01"], name=f"p{panel_size}_sum01"))
+        nodes.append(helper.make_node("Add", [selected_quadrants[2], selected_quadrants[3]], [f"p{panel_size}_sum23"], name=f"p{panel_size}_sum23"))
+        nodes.append(helper.make_node("Add", [f"p{panel_size}_sum01", f"p{panel_size}_sum23"], [f"p{panel_size}_selected"], name=f"p{panel_size}_selected"))
+        nodes.append(
+            helper.make_node(
+                "Mul",
+                [f"p{panel_size}_selected", f"p{panel_size}_active"],
+                [f"p{panel_size}_selected_active"],
+                name=f"p{panel_size}_selected_active",
+            )
+        )
+        selected_by_size.append(f"p{panel_size}_selected_active")
+
+    rolling = selected_by_size[0]
+    for index, selected_name in enumerate(selected_by_size[1:], start=2):
+        output_name = f"panel_size_sum_{index}"
+        nodes.append(helper.make_node("Add", [rolling, selected_name], [output_name], name=output_name))
+        rolling = output_name
+
+    nodes.append(
+        helper.make_node(
+            "Conv",
+            [rolling, "ColorW"],
+            ["output"],
+            name="output",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        )
+    )
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        "dynamic_quadrant_panel_select",
+        num_channels,
+        height,
+        width,
+    )
+
+
+def build_dynamic_frame_interior_crop_model(
+    frame_color: int,
+    color_map: dict[int, int],
+    output_path: str,
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Build a dynamic crop of the interior of a color-specific rectangular frame."""
+    if frame_color < 0 or frame_color >= num_channels:
+        raise ValueError(f"frame_color must be within 0..{num_channels - 1}")
+
+    full_map: list[int] = []
+    for old_color in range(num_channels):
+        new_color = int(color_map.get(old_color, old_color))
+        if new_color < 0 or new_color >= num_channels:
+            raise ValueError(f"mapped color {new_color} is outside 0..{num_channels - 1}")
+        full_map.append(new_color)
+
+    select_weights = np.zeros((1, num_channels, 1, 1), dtype=np.float32)
+    select_weights[0, frame_color, 0, 0] = 1.0
+    color_weights = np.zeros((num_channels, num_channels, 1, 1), dtype=np.float32)
+    for old_color, new_color in enumerate(full_map):
+        color_weights[new_color, old_color, 0, 0] = 1.0
+
+    offsets = np.arange(height, dtype=np.int64)
+    reverse_indices = np.arange(height - 1, -1, -1, dtype=np.int64)
+    one = np.array(1, dtype=np.int64)
+    last_index = np.array(height - 1, dtype=np.int64)
+    zero_threshold = np.array(0.0, dtype=np.float32)
+
+    initializers = [
+        numpy_helper.from_array(select_weights, name="SelectW"),
+        numpy_helper.from_array(color_weights, name="ColorW"),
+        numpy_helper.from_array(zero_threshold, name="Zero"),
+        numpy_helper.from_array(offsets, name="Offsets"),
+        numpy_helper.from_array(reverse_indices, name="ReverseIndices"),
+        numpy_helper.from_array(one, name="One"),
+        numpy_helper.from_array(last_index, name="LastIndex"),
+    ]
+    nodes = [
+        helper.make_node(
+            "Conv",
+            ["input", "SelectW"],
+            ["selected_sum"],
+            name="selected_sum",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        helper.make_node("Greater", ["selected_sum", "Zero"], ["selected_bool"], name="selected_bool"),
+        _cast_to_float("selected_bool", "selected_float"),
+        helper.make_node("ReduceSum", ["selected_float"], ["row_sum"], name="row_sum", axes=[3], keepdims=0),
+        helper.make_node("ReduceSum", ["selected_float"], ["col_sum"], name="col_sum", axes=[2], keepdims=0),
+        helper.make_node("Greater", ["row_sum", "Zero"], ["row_any"], name="row_any"),
+        helper.make_node("Greater", ["col_sum", "Zero"], ["col_any"], name="col_any"),
+        _cast_to_float("row_any", "row_any_float"),
+        _cast_to_float("col_any", "col_any_float"),
+        helper.make_node("ArgMax", ["row_any_float"], ["top_keep"], name="top_keep", axis=2, keepdims=0),
+        helper.make_node("ArgMax", ["col_any_float"], ["left_keep"], name="left_keep", axis=2, keepdims=0),
+        helper.make_node("Gather", ["row_any_float", "ReverseIndices"], ["row_any_reverse"], name="row_any_reverse", axis=2),
+        helper.make_node("Gather", ["col_any_float", "ReverseIndices"], ["col_any_reverse"], name="col_any_reverse", axis=2),
+        helper.make_node("ArgMax", ["row_any_reverse"], ["bottom_distance_keep"], name="bottom_distance_keep", axis=2, keepdims=0),
+        helper.make_node("ArgMax", ["col_any_reverse"], ["right_distance_keep"], name="right_distance_keep", axis=2, keepdims=0),
+        helper.make_node("Squeeze", ["top_keep"], ["top"], name="top", axes=[0, 1]),
+        helper.make_node("Squeeze", ["left_keep"], ["left"], name="left", axes=[0, 1]),
+        helper.make_node("Squeeze", ["bottom_distance_keep"], ["bottom_distance"], name="bottom_distance", axes=[0, 1]),
+        helper.make_node("Squeeze", ["right_distance_keep"], ["right_distance"], name="right_distance", axes=[0, 1]),
+        helper.make_node("Sub", ["LastIndex", "bottom_distance"], ["bottom"], name="bottom"),
+        helper.make_node("Sub", ["LastIndex", "right_distance"], ["right"], name="right"),
+        helper.make_node("Sub", ["bottom", "top"], ["bbox_height_minus_one"], name="bbox_height_minus_one"),
+        helper.make_node("Sub", ["right", "left"], ["bbox_width_minus_one"], name="bbox_width_minus_one"),
+        helper.make_node("Sub", ["bbox_height_minus_one", "One"], ["interior_height"], name="interior_height"),
+        helper.make_node("Sub", ["bbox_width_minus_one", "One"], ["interior_width"], name="interior_width"),
+        helper.make_node("Add", ["top", "One"], ["interior_top"], name="interior_top"),
+        helper.make_node("Add", ["left", "One"], ["interior_left"], name="interior_left"),
+        helper.make_node("Less", ["Offsets", "interior_height"], ["valid_rows"], name="valid_rows"),
+        helper.make_node("Less", ["Offsets", "interior_width"], ["valid_cols"], name="valid_cols"),
+        helper.make_node("Add", ["Offsets", "interior_top"], ["raw_rows"], name="raw_rows"),
+        helper.make_node("Add", ["Offsets", "interior_left"], ["raw_cols"], name="raw_cols"),
+        helper.make_node("Where", ["valid_rows", "raw_rows", "interior_top"], ["source_rows"], name="source_rows"),
+        helper.make_node("Where", ["valid_cols", "raw_cols", "interior_left"], ["source_cols"], name="source_cols"),
+        helper.make_node("Unsqueeze", ["valid_rows"], ["valid_rows_2d"], name="valid_rows_2d", axes=[1]),
+        helper.make_node("Unsqueeze", ["valid_cols"], ["valid_cols_2d"], name="valid_cols_2d", axes=[0]),
+        helper.make_node("And", ["valid_rows_2d", "valid_cols_2d"], ["active_bool"], name="active_bool"),
+        helper.make_node("Gather", ["input", "source_rows"], ["gather_rows"], name="gather_rows", axis=2),
+        helper.make_node("Gather", ["gather_rows", "source_cols"], ["remapped"], name="remapped", axis=3),
+        helper.make_node(
+            "Conv",
+            ["remapped", "ColorW"],
+            ["mapped"],
+            name="mapped",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        _cast_to_float("active_bool", "active_float"),
+        helper.make_node("Mul", ["mapped", "active_float"], ["output"], name="output"),
+    ]
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        "dynamic_frame_interior_crop",
         num_channels,
         height,
         width,

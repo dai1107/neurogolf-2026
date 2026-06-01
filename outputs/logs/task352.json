@@ -102,8 +102,24 @@
       "reason": "no object selection matches all train cases"
     },
     {
+      "rule": "DynamicQuadrantPanelSelectRule",
+      "reason": "output shape does not match quadrant shape"
+    },
+    {
+      "rule": "DynamicBBoxCropRule",
+      "reason": "no dynamic bbox crop matches all train cases"
+    },
+    {
       "rule": "DynamicNonBackgroundBBoxCropRule",
       "reason": "no dynamic non-background bbox crop matches all train cases"
+    },
+    {
+      "rule": "FrameInteriorRule",
+      "reason": "no frame interior transform matches all train cases"
+    },
+    {
+      "rule": "ComposedRuleSearch",
+      "reason": "no two-step composition matches all train cases"
     },
     {
       "rule": "DynamicBBoxExtremeColorSwapRule",
@@ -415,10 +431,38 @@
       }
     },
     {
+      "rule_name": "DynamicQuadrantPanelSelectRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "output shape does not match quadrant shape",
+      "metadata": {}
+    },
+    {
+      "rule_name": "DynamicBBoxCropRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no dynamic bbox crop matches all train cases",
+      "metadata": {}
+    },
+    {
       "rule_name": "DynamicNonBackgroundBBoxCropRule",
       "matched": false,
       "confidence": "REJECT",
       "reason": "no dynamic non-background bbox crop matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "FrameInteriorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no frame interior transform matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ComposedRuleSearch",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no two-step composition matches all train cases",
       "metadata": {}
     },
     {

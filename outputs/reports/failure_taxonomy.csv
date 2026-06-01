@@ -54,7 +54,6 @@ task061,failed,4,18x18,18x18,same_size,output_subset_colors,161,input_output_not
 task062,failed,4,10x10,10x10,same_size,changed_color_set,383,input_output_not_identical,other
 task063,failed,3,10x10 12x12,10x10 12x12,variable_shapes,output_superset_colors,122,input_output_not_identical,other
 task064,failed,4,9x12 10x12 14x12 14x18,9x12 10x12 14x12 14x18,variable_shapes,same_color_set,21,input_output_not_identical,other
-task065,failed,3,5x5 7x7 11x11,2x2 3x3 5x5,variable_shapes,output_subset_colors,0,output_size_differs_from_input_size,shape
 task066,failed,3,10x10 15x15 20x20,10x10 15x15 20x20,variable_shapes,same_color_set,44,input_output_not_identical,other
 task067,failed,3,2x6 3x9 4x12,2x2 3x3 4x4,variable_shapes,same_color_set,0,output_size_differs_from_input_size,shape
 task068,failed,3,10x10,10x10,same_size,output_subset_colors,79,input_output_not_identical,other
@@ -179,7 +178,6 @@ task203,failed,4,6x6 8x8 10x10 12x12,6x6 8x8 10x10 12x12,variable_shapes,same_co
 task204,failed,5,10x10 11x11 15x15 20x20,10x10 11x11 15x15 20x20,variable_shapes,output_superset_colors,176,input_output_not_identical,other
 task205,failed,3,16x17 17x23 27x23,6x8 7x6 10x9,variable_shapes,output_subset_colors,0,output_size_differs_from_input_size,shape
 task206,failed,3,8x7 9x9 10x8,8x7 9x9 10x8,variable_shapes,output_subset_colors,19,input_output_not_identical,other
-task207,failed,3,5x5,2x2,shrinks_or_crop,same_color_set,0,output_size_differs_from_input_size,shape
 task208,failed,3,21x21,21x21,same_size,same_color_set,46,input_output_not_identical,other
 task209,failed,3,16x18 17x17 17x18,7x7 9x14 11x11,variable_shapes,same_color_set,0,output_size_differs_from_input_size,shape
 task211,failed,3,3x2,9x4,integer_scale_or_tile,same_color_set,0,output_size_differs_from_input_size,shape

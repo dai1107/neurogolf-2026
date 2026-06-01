@@ -5,6 +5,7 @@ from src.pattern_rules import (
     DynamicBBoxExtremeColorSwapRule,
     DynamicActiveMirrorRule,
     DynamicNonBackgroundBBoxCropRule,
+    DynamicQuadrantPanelSelectRule,
     FrameInteriorRule,
     ColorMapRule,
     ComposedRuleSearch,
@@ -362,6 +363,84 @@ def test_panel_semantic_rule_detects_variable_panel_selection() -> None:
     assert result.metadata["blocked_reason"] == "builder_missing_dynamic_panel_select"
 
 
+def test_dynamic_quadrant_panel_select_rule_builds_unique_color_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [8, 8, 3, 8, 8],
+                    [8, 8, 3, 8, 8],
+                    [3, 3, 3, 3, 3],
+                    [8, 8, 3, 8, 8],
+                    [4, 8, 3, 8, 8],
+                ],
+                "output": [
+                    [8, 8],
+                    [4, 8],
+                ],
+            },
+            {
+                "input": [
+                    [4, 4, 4, 2, 4, 4, 4],
+                    [4, 4, 4, 2, 4, 1, 4],
+                    [4, 4, 4, 2, 4, 4, 4],
+                    [2, 2, 2, 2, 2, 2, 2],
+                    [4, 4, 4, 2, 4, 4, 4],
+                    [4, 4, 4, 2, 4, 4, 4],
+                    [4, 4, 4, 2, 4, 4, 4],
+                ],
+                "output": [
+                    [4, 4, 4],
+                    [4, 1, 4],
+                    [4, 4, 4],
+                ],
+            },
+        ]
+    }
+
+    rule = DynamicQuadrantPanelSelectRule()
+    result = rule.match(task)
+
+    assert result.matched is True
+    assert result.metadata["selector"] == "unique_max_panel_difference"
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
+
+
+def test_dynamic_quadrant_panel_select_rule_builds_unique_pattern_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [0, 2, 0, 0, 2],
+                    [2, 2, 0, 2, 2],
+                    [0, 0, 0, 0, 0],
+                    [0, 2, 0, 2, 2],
+                    [2, 2, 0, 2, 0],
+                ],
+                "output": [
+                    [2, 2],
+                    [2, 0],
+                ],
+            },
+            {
+                "input": [
+                    [1, 0, 0, 1, 0],
+                    [0, 1, 0, 0, 1],
+                    [0, 0, 0, 0, 0],
+                    [1, 0, 0, 1, 0],
+                    [1, 1, 0, 0, 1],
+                ],
+                "output": [
+                    [1, 0],
+                    [1, 1],
+                ],
+            },
+        ]
+    }
+
+    _assert_rule_builds_and_validates(DynamicQuadrantPanelSelectRule(), task, tmp_path)
+
+
 def test_dynamic_bbox_crop_rule_detects_object_crop() -> None:
     task = {
         "train": [
@@ -389,8 +468,41 @@ def test_dynamic_bbox_crop_rule_detects_object_crop() -> None:
     result = DynamicBBoxCropRule().match(task)
 
     assert result.matched is True
-    assert result.metadata["builder_available"] is False
-    assert result.metadata["blocked_reason"] == "builder_missing_dynamic_bbox"
+    assert result.metadata["builder_available"] is True
+
+
+def test_dynamic_bbox_crop_rule_builds_color_specific_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [0, 0, 0, 0, 0],
+                    [0, 5, 5, 0, 2],
+                    [0, 5, 0, 0, 2],
+                    [0, 0, 0, 0, 0],
+                ],
+                "output": [[8, 8], [8, 0]],
+            },
+            {
+                "input": [
+                    [0, 3, 0, 0],
+                    [0, 0, 5, 5],
+                    [0, 0, 0, 5],
+                    [0, 0, 0, 0],
+                ],
+                "output": [[8, 8], [0, 8]],
+            },
+        ]
+    }
+
+    rule = DynamicBBoxCropRule()
+    result = rule.match(task)
+
+    assert result.matched is True
+    assert result.metadata["kind"] in {"bbox_of_color", "bbox_of_unique_color_component"}
+    assert result.metadata["color"] == 5
+    assert result.metadata["builder_available"] is True
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
 
 
 def test_dynamic_non_background_bbox_crop_rule_builds_valid_model(tmp_path) -> None:
@@ -516,6 +628,40 @@ def test_frame_interior_rule_detects_interior_crop() -> None:
 
     assert result.matched is True
     assert result.metadata["mode"] == "frame_interior_crop"
+    assert result.metadata["builder_available"] is True
+
+
+def test_frame_interior_rule_builds_dynamic_interior_crop(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [0, 0, 0, 0, 0],
+                    [0, 6, 6, 6, 0],
+                    [0, 6, 1, 6, 0],
+                    [0, 6, 2, 6, 0],
+                    [0, 6, 6, 6, 0],
+                ],
+                "output": [[7], [8]],
+            },
+            {
+                "input": [
+                    [6, 6, 6, 6],
+                    [6, 1, 2, 6],
+                    [6, 6, 6, 6],
+                ],
+                "output": [[7, 8]],
+            },
+        ]
+    }
+
+    rule = FrameInteriorRule()
+    result = rule.match(task)
+
+    assert result.matched is True
+    assert result.metadata["mode"] == "frame_interior_crop"
+    assert result.metadata["color_map"] == {1: 7, 2: 8}
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
 
 
 def test_object_edit_rule_detects_isolated_noise_removal() -> None:
@@ -542,7 +688,7 @@ def test_object_edit_rule_detects_isolated_noise_removal() -> None:
     assert result.metadata["mode"] == "remove_isolated_noise"
 
 
-def test_composed_rule_search_detects_extract_then_mirror() -> None:
+def test_composed_rule_search_detects_extract_then_mirror(tmp_path) -> None:
     task = {
         "train": [
             {
@@ -561,6 +707,8 @@ def test_composed_rule_search_detects_extract_then_mirror() -> None:
 
     assert result.matched is True
     assert result.metadata["finisher"] == "mirror_horizontal"
+    assert result.metadata["builder_available"] is True
+    _assert_rule_builds_and_validates(ComposedRuleSearch(), task, tmp_path)
 
 
 def test_candidate_discovery_report_records_probe_match(tmp_path) -> None:

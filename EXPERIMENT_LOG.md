@@ -1,5 +1,259 @@
 # 实验日志
 
+## 2026-06-01 22:40 - 官方错误五任务排除 + output-name-safe padding repair
+
+### 目标
+
+用户反馈官方处理 `task099`, `task180`, `task266`, `task283`, `task331` 的 ONNX 网络失败。本轮先把这五个任务从主 `submission.zip` 中排除，再定位原因并生成不破坏已成功任务的修复候选。
+
+### 修改文件
+
+- `src/blend_archive_submission.py`
+- `src/repair_archive_padding.py`
+- `outputs/submission.zip`
+- `outputs/submission_candidate_active_static.zip`
+- `outputs/reports/archive_blend_report.csv`
+- `outputs/reports/archive_blend_active_static_report.csv`
+- `outputs/reports/archive_padding_repair_active_report.csv`
+- `outputs/reports/archive_padding_repair_active_static_report.csv`
+- `outputs/archive_repaired_active/*.onnx`
+- `outputs/archive_repaired_active_static/*.onnx`
+- `outputs/archive_blended_active_static_onnx/*.onnx`
+- `PROGRESS.md`
+- `EXPERIMENT_LOG.md`
+
+### 实现内容
+
+- `blend_archive_submission` 新增 `--exclude-task-ids`。
+  - 先重建主 `outputs/submission.zip`，排除 `task099`, `task180`, `task266`, `task283`, `task331`。
+  - 主包现在是安全回退版，383 个 ONNX。
+- 修复 `repair_archive_padding` 的 output name 问题。
+  - 原修复版输出名变成 `masked_output`，疑似导致官方 processing error。
+  - 新修复保留 graph output 名 `output`，内部把原 producer 输出改成 `output_unmasked`。
+- 修复 dtype 问题。
+  - `task004` 原 archive output 是 `float16`，追加 float32 mask 会导致 ORT 类型错误。
+  - 现在静态 mask dtype 与 graph output dtype 一致；动态 active mask cast 到 graph output dtype。
+- 新增 active-mask repair 模式。
+  - 用 1x1 `Conv` 从 input one-hot 计算 active 区域，避免 `ReduceSum` axes 在高 opset 模型上的兼容问题。
+  - 修复 input/output 同尺寸但 train shape 可变的 padding 非零任务。
+
+### 验证命令
+
+```powershell
+python -m compileall src tests
+python -m pytest -q
+python -m src.blend_archive_submission --archive-dir outputs\archive_repaired --current-dir outputs\onnx --blended-dir outputs\archive_blended_onnx --report outputs\reports\archive_blend_report.csv --zip outputs\submission.zip --timeout-seconds 120 --exclude-task-ids task099,task180,task266,task283,task331
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m src.repair_archive_padding --output-dir outputs\archive_repaired_active --repair-report outputs\reports\archive_padding_repair_active_report.csv --mode active --task-ids task004,task098,task099,task120,task122,task266,task283,task331,task344
+python -m src.repair_archive_padding --archive-dir outputs\archive_repaired_active --output-dir outputs\archive_repaired_active_static --repair-report outputs\reports\archive_padding_repair_active_static_report.csv --task-ids task180
+python -m src.blend_archive_submission --archive-dir outputs\archive_repaired_active_static --current-dir outputs\onnx --blended-dir outputs\archive_blended_active_static_onnx --report outputs\reports\archive_blend_active_static_report.csv --zip outputs\submission_candidate_active_static.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission_candidate_active_static.zip
+```
+
+### 结果
+
+- `compileall`: passed
+- `pytest`: 61 passed
+- Main safe submission: `outputs/submission.zip`
+  - inspection passed
+  - 383 ONNX models
+  - 1396158 bytes
+  - excludes the five official-error tasks
+- Candidate repaired submission: `outputs/submission_candidate_active_static.zip`
+  - inspection passed
+  - 393 ONNX models
+  - 1448132 bytes
+  - source counts: archive/repaired archive 377, current local optimized 16
+  - estimated cost total: 10494589
+  - file size total: 14703185 bytes
+
+### 新增候选修复任务
+
+- Dynamic active-mask repair: `task004`, `task098`, `task099`, `task120`, `task122`, `task266`, `task283`, `task331`, `task344`
+- Static output mask repair with output name preserved: `task180`
+
+### 剩余风险和判断
+
+- 主提交保持 383，避免再次提交已知官方处理失败的五个模型。
+- `outputs/submission_candidate_active_static.zip` 是修复候选包，保留 `input` / `output` graph 名，理论上修复了前一版官方 processing error 的直接原因。
+- 仍未解决: `task042`, `task094`, `task168`, `task184`, `task224`, `task288` 的 archive 模型本地 ORT 子进程访问冲突；`task277` 动态 shape。
+
+## 2026-06-01 21:30 - archive baseline 验证、padding 修复与 blended submission
+
+### 目标
+
+用户确认 `archive/` 中的 400 个外部 baseline ONNX 可以用于提交。本轮目标是在不放松本地严格验证的前提下，把外部 baseline 作为候选源，与当前本地优化模型按 cost 合并，生成新的 `submission.zip`。
+
+### 修改文件
+
+- `src/blend_archive_submission.py`
+- `src/evaluate_onnx_candidate.py`
+- `src/repair_archive_padding.py`
+- `outputs/reports/archive_blend_report.csv`
+- `outputs/reports/archive_padding_repair_report.csv`
+- `outputs/archive_repaired/*.onnx`
+- `outputs/archive_blended_onnx/*.onnx`
+- `outputs/submission.zip`
+- `PROGRESS.md`
+- `EXPERIMENT_LOG.md`
+
+### 实现内容
+
+- 新增 `src.evaluate_onnx_candidate`。
+  - 单个 ONNX 候选在独立 Python 子进程中执行 checker / forbidden ops / static shape / cost / onnxruntime train validation。
+  - 避免 archive 中个别模型触发 ORT 访问冲突时中断整轮验证。
+- 新增 `src.blend_archive_submission`。
+  - 对 `archive` 与当前 `outputs/onnx` 逐任务评估。
+  - 只选择通过本地严格验证的模型。
+  - 在 archive 与 current 都通过时，按 `estimated_cost`, `file_size_bytes`, source preference 选择最低成本模型。
+  - 输出 `outputs/reports/archive_blend_report.csv` 和 blended `outputs/submission.zip`。
+- 新增 `src.repair_archive_padding`。
+  - 对 archive 中仅因 fixed-shape padding 非零失败的模型追加静态 output active mask。
+  - 生成 `outputs/archive_repaired`。
+  - 变输出尺寸任务不做静态 mask，避免错误验证。
+
+### 验证命令
+
+```powershell
+python -m compileall src tests
+python -m pytest -q
+python -m src.blend_archive_submission --archive-dir archive --current-dir outputs\onnx --blended-dir outputs\archive_blended_onnx --report outputs\reports\archive_blend_report.csv --zip outputs\submission.zip --timeout-seconds 120
+python -m src.repair_archive_padding
+python -m src.blend_archive_submission --archive-dir outputs\archive_repaired --current-dir outputs\onnx --blended-dir outputs\archive_blended_onnx --report outputs\reports\archive_blend_report.csv --zip outputs\submission.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission.zip
+```
+
+### 结果
+
+- `compileall`: passed
+- `pytest`: 61 passed
+- First archive blend: 383 selected, 17 missing
+- Padding repair rows: 17
+- Final repaired archive blend: 388 selected, 12 missing
+- Final source counts:
+  - archive/repaired archive: 372
+  - current local optimized: 16
+- `inspect_submission`: passed, 388 ONNX models
+- `outputs/submission.zip`: 1420939 bytes
+- Blended selected estimated cost total: 10474834
+- Blended selected ONNX file size total: 14683926 bytes
+
+### 剩余未纳入任务
+
+- `task004`, `task098`, `task120`, `task122`, `task344`: archive 模型 active 区域之外 padding 非零，但 train output shape 可变，当前未做动态 mask 包装。
+- `task042`, `task094`, `task168`, `task184`, `task224`, `task288`: archive 模型在 ORT 子进程中返回 `3221225477`，本地视为运行时不可用。
+- `task277`: archive 模型 shape inference 出现动态 shape，违反静态 shape 约束。
+
+### 判断
+
+当前最终 `outputs/submission.zip` 是一个保守 blended submission，只包含本地严格验证通过的 ONNX。虽然 archive 来源声称覆盖 400 任务，但本项目不把未通过本地严格验证、运行时崩溃或动态 shape 的模型放入提交包。
+
+## 2026-06-01 18:45 - 五个优化方向正式化: dynamic panel / frame interior / color bbox / safe composition
+
+### 目标
+
+根据 `优化策略.md` 的五个方向，把剩余 candidate-discovery 任务中已经能被 Python probe 解释的规则，尽量转成保守、可验证、可提交的 ONNX builder。正确性和 submission 安全优先于扩大命中面。
+
+### 修改文件
+
+- `src/onnx_builders.py`
+- `src/pattern_rules.py`
+- `src/solve_task.py`
+- `src/candidate_discovery_report.py`
+- `tests/test_pattern_rules.py`
+- 重新生成 `outputs/onnx/*.onnx`
+- 重新生成 `outputs/candidates/*.onnx`
+- 重新生成 `outputs/logs/*.json`
+- 重新生成 `outputs/reports/summary.csv`
+- 重新生成 `outputs/reports/failure_taxonomy.csv`
+- 重新生成 `outputs/reports/rule_near_miss.csv`
+- 重新生成 `outputs/reports/candidate_discovery_report.csv`
+- 重新生成 `outputs/reports/probe_summary.csv`
+- 重新生成 `outputs/submission.zip`
+- 更新 `PROGRESS.md`
+- 更新 `EXPERIMENT_LOG.md`
+
+### 实现内容
+
+- 新增 `build_dynamic_quadrant_panel_select_model()` 和 `DynamicQuadrantPanelSelectRule`。
+  - 针对 odd square 2x2 center-cross panel。
+  - 用 panel 间差异和选出 unique max-difference quadrant。
+  - 支持输出 selected panel + color map。
+  - 解决 `task065`, `task207`。
+- 新增 `build_dynamic_frame_interior_crop_model()`。
+  - 支持 color-specific frame bbox 的 interior crop。
+  - 支持 interior + color map。
+  - `FrameInteriorRule` 只在 frame_color 全体像素 bbox 等于目标 frame bbox 时允许 builder；否则记录 `frame_color_bbox_contains_extra_cells`。
+- 新增 `build_dynamic_color_bbox_crop_model()`。
+  - 支持 `bbox_of_color` / `bbox_of_unique_color_component`。
+  - 支持 identity / horizontal mirror / vertical mirror + color map。
+- 扩展 `DynamicBBoxCropRule`。
+  - buildable 子集: `bbox_of_all_non_background`, `bbox_of_color`, `bbox_of_unique_color_component`。
+  - component-selection 类候选仍保持 blocked，不构建。
+- 扩展 `ComposedRuleSearch`。
+  - 安全子集: buildable bbox extractor -> identity / horizontal mirror / vertical mirror -> color map。
+  - panel / component / rotate 组合仍保持 blocked，不构建。
+- 更新 `solve_task`。
+  - 对 `metadata["builder_available"] is False` 的匹配显式跳过构建，只记录 blocked reason。
+  - 避免 probe-only 分支以异常形式污染失败日志。
+- 更新 `candidate_discovery_report`。
+  - `DynamicBBoxCropRule`, `FrameInteriorRule`, `ComposedRuleSearch` 改为按 metadata 判断 builder availability。
+- 新增/更新测试。
+  - dynamic quadrant panel select 的 unique color / unique pattern。
+  - color-specific dynamic bbox crop builder。
+  - dynamic frame interior crop builder。
+  - composed safe bbox extractor + mirror builder。
+
+### 验证命令
+
+```powershell
+python -m pytest tests\test_pattern_rules.py -q
+python -m pytest -q
+python -m compileall src tests
+python -m src.build_submission
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m src.failure_taxonomy
+python -m src.candidate_discovery_report
+python -m src.probe_rules --data-dir task --report outputs\reports\probe_summary.csv --summary outputs\reports\summary.csv
+git diff --check
+```
+
+### 结果
+
+- targeted pattern tests: 52 passed
+- full pytest: 61 passed
+- compileall: passed
+- full rebuild: 400 tasks processed, 53 solved, 347 failed
+- `inspect_submission`: passed, 53 ONNX models
+- `failure_taxonomy`: 347 rows
+- `rule_near_miss`: 347 rows
+- `candidate_discovery_report`: 6 rows
+- `probe_summary`: scanned 347 failed tasks
+- `git diff --check`: passed with line-ending warnings only
+- `outputs/submission.zip`: 60236 bytes
+
+本轮新增 solved:
+- `task065` -> `DynamicQuadrantPanelSelectRule`, cost 93935, file 144684
+- `task207` -> `DynamicQuadrantPanelSelectRule`, cost 93935, file 144684
+
+当前汇总:
+- Local train solved: 53 / 400
+- Failed: 347 / 400
+- solved 模型 estimated cost 总和: 369897
+- solved 模型 ONNX file size 总和: 503527 bytes
+
+### 剩余阻塞
+
+`candidate_discovery_report.csv` 当前剩余 6 行:
+- `task036`: `DynamicBBoxCropRule` -> `builder_missing_dynamic_bbox`
+- `task036`: `FrameInteriorRule` -> `frame_color_bbox_contains_extra_cells`
+- `task036`: `ComposedRuleSearch` -> `requires_composed_rule`
+- `task079`: `FrameInteriorRule` -> `frame_color_bbox_contains_extra_cells`
+- `task174`: `DynamicBBoxCropRule` -> `builder_missing_dynamic_bbox`
+- `task174`: `ComposedRuleSearch` -> `requires_composed_rule`
+
+这些剩余项需要真正的 component-selection 或更细的 frame/color-role selector；当前不能安全地用 color bbox 或 frame bbox 近似，否则会破坏泛化或 train validation。
+
 ## 2026-05-31 21:55 - Rectangle/line builders + shape-polymorphic single-color translation
 
 ### 目标

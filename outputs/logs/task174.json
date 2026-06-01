@@ -110,8 +110,24 @@
       "reason": "local_rewrite_requires_same_size"
     },
     {
+      "rule": "DynamicQuadrantPanelSelectRule",
+      "reason": "input is not an odd square 2x2 center-cross panel grid"
+    },
+    {
+      "rule": "DynamicBBoxCropRule",
+      "reason": "builder_missing_dynamic_bbox"
+    },
+    {
       "rule": "DynamicNonBackgroundBBoxCropRule",
       "reason": "no dynamic non-background bbox crop matches all train cases"
+    },
+    {
+      "rule": "FrameInteriorRule",
+      "reason": "no frame interior transform matches all train cases"
+    },
+    {
+      "rule": "ComposedRuleSearch",
+      "reason": "requires_composed_rule"
     },
     {
       "rule": "DynamicBBoxExtremeColorSwapRule",
@@ -337,11 +353,64 @@
       "metadata": {}
     },
     {
+      "rule_name": "DynamicQuadrantPanelSelectRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "input is not an odd square 2x2 center-cross panel grid",
+      "metadata": {}
+    },
+    {
+      "rule_name": "DynamicBBoxCropRule",
+      "matched": true,
+      "confidence": "MATCH",
+      "reason": "matched dynamic bbox crop kind=bbox_of_component_not_touching_border color=0 transform=identity",
+      "metadata": {
+        "kind": "bbox_of_component_not_touching_border",
+        "color": 0,
+        "transform": "identity",
+        "mode": "bbox_crop_colormap",
+        "color_map": {
+          "6": 6,
+          "0": 0,
+          "4": 4,
+          "5": 5
+        },
+        "builder_available": false,
+        "blocked_reason": "builder_missing_dynamic_bbox"
+      }
+    },
+    {
       "rule_name": "DynamicNonBackgroundBBoxCropRule",
       "matched": false,
       "confidence": "REJECT",
       "reason": "no dynamic non-background bbox crop matches all train cases",
       "metadata": {}
+    },
+    {
+      "rule_name": "FrameInteriorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no frame interior transform matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ComposedRuleSearch",
+      "matched": true,
+      "confidence": "MATCH",
+      "reason": "matched composed rule bbox_of_component_not_touching_border -> identity",
+      "metadata": {
+        "extractor": "bbox_of_component_not_touching_border",
+        "extractor_color": 0,
+        "finisher": "identity",
+        "color_map": {
+          "6": 6,
+          "0": 0,
+          "4": 4,
+          "5": 5
+        },
+        "builder_available": false,
+        "blocked_reason": "requires_composed_rule"
+      }
     },
     {
       "rule_name": "DynamicBBoxExtremeColorSwapRule",

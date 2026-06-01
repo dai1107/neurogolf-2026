@@ -36,10 +36,7 @@ FIELDS = [
 
 PROBE_ONLY_RULES = {
     "PanelSemanticRule",
-    "DynamicBBoxCropRule",
-    "FrameInteriorRule",
     "ObjectEditRule",
-    "ComposedRuleSearch",
 }
 
 

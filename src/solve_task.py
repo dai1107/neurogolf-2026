@@ -87,6 +87,14 @@ def solve_task(
             if not match.matched:
                 failure_reasons.append({"rule": rule.name, "reason": match.reason})
                 continue
+            if match.metadata.get("builder_available") is False:
+                failure_reasons.append(
+                    {
+                        "rule": rule.name,
+                        "reason": match.metadata.get("blocked_reason", "builder_unavailable"),
+                    }
+                )
+                continue
 
             candidate_path = str(Path(candidate_dir) / f"{task_id}_{rule.name}.onnx")
             candidate = rule.build(task_id, task, candidate_path, match.metadata)

@@ -3,8 +3,8 @@
   "status": "solved",
   "best_rule": "DynamicActiveMirrorRule",
   "model_path": "outputs\\onnx\\task155.onnx",
-  "num_candidates": 2,
-  "num_valid_candidates": 2,
+  "num_candidates": 4,
+  "num_valid_candidates": 4,
   "estimated_cost": 622,
   "estimated_score": 18.56705990726082,
   "file_size_bytes": 2886,
@@ -104,6 +104,14 @@
     {
       "rule": "LocalNeighborhoodRewriteRule",
       "reason": "no local neighborhood rewrite matches all train cases"
+    },
+    {
+      "rule": "DynamicQuadrantPanelSelectRule",
+      "reason": "input is not an odd square 2x2 center-cross panel grid"
+    },
+    {
+      "rule": "FrameInteriorRule",
+      "reason": "no frame interior transform matches all train cases"
     },
     {
       "rule": "DynamicBBoxExtremeColorSwapRule",
@@ -329,6 +337,35 @@
       "metadata": {}
     },
     {
+      "rule_name": "DynamicQuadrantPanelSelectRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "input is not an odd square 2x2 center-cross panel grid",
+      "metadata": {}
+    },
+    {
+      "rule_name": "DynamicBBoxCropRule",
+      "matched": true,
+      "confidence": "MATCH",
+      "reason": "matched dynamic bbox crop kind=bbox_of_all_non_background color=0 transform=mirror_vertical",
+      "metadata": {
+        "kind": "bbox_of_all_non_background",
+        "color": 0,
+        "transform": "mirror_vertical",
+        "mode": "bbox_crop_colormap",
+        "color_map": {
+          "8": 8,
+          "7": 7,
+          "4": 4,
+          "2": 2,
+          "3": 3,
+          "1": 1
+        },
+        "builder_available": true,
+        "blocked_reason": ""
+      }
+    },
+    {
       "rule_name": "DynamicNonBackgroundBBoxCropRule",
       "matched": true,
       "confidence": "MATCH",
@@ -345,6 +382,34 @@
           "1": 1
         },
         "mode": "dynamic_non_background_bbox_crop"
+      }
+    },
+    {
+      "rule_name": "FrameInteriorRule",
+      "matched": false,
+      "confidence": "REJECT",
+      "reason": "no frame interior transform matches all train cases",
+      "metadata": {}
+    },
+    {
+      "rule_name": "ComposedRuleSearch",
+      "matched": true,
+      "confidence": "MATCH",
+      "reason": "matched composed rule bbox_of_all_non_background -> mirror_vertical",
+      "metadata": {
+        "extractor": "bbox_of_all_non_background",
+        "extractor_color": 0,
+        "finisher": "mirror_vertical",
+        "color_map": {
+          "8": 8,
+          "7": 7,
+          "4": 4,
+          "2": 2,
+          "3": 3,
+          "1": 1
+        },
+        "builder_available": true,
+        "blocked_reason": ""
       }
     },
     {
@@ -412,6 +477,73 @@
     },
     {
       "task_id": "task155",
+      "rule_name": "DynamicBBoxCropRule",
+      "priority": 22,
+      "model_path": "outputs\\candidates\\task155_DynamicBBoxCropRule.onnx",
+      "metadata": {
+        "kind": "bbox_of_all_non_background",
+        "color": 0,
+        "transform": "mirror_vertical",
+        "mode": "bbox_crop_colormap",
+        "color_map": {
+          "8": 8,
+          "7": 7,
+          "4": 4,
+          "2": 2,
+          "3": 3,
+          "1": 1
+        },
+        "builder_available": true,
+        "blocked_reason": ""
+      },
+      "onnx_checker_ok": true,
+      "num_parameters": 173,
+      "initializer_memory_bytes": 940,
+      "file_size_bytes": 3769,
+      "estimated_cost": 1113,
+      "estimated_score": 17.985185648724453,
+      "file_size_ok": true,
+      "forbidden_ops_ok": true,
+      "forbidden_ops_found": [],
+      "static_shapes_ok": true,
+      "static_shape_failures": [],
+      "validation_passed": true,
+      "validation": {
+        "passed": true,
+        "num_cases": 3,
+        "failed_cases": [],
+        "case_results": [
+          {
+            "case_index": 0,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          },
+          {
+            "case_index": 1,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          },
+          {
+            "case_index": 2,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          }
+        ]
+      },
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "task_id": "task155",
       "rule_name": "DynamicNonBackgroundBBoxCropRule",
       "priority": 26,
       "model_path": "outputs\\candidates\\task155_DynamicNonBackgroundBBoxCropRule.onnx",
@@ -427,6 +559,72 @@
           "1": 1
         },
         "mode": "dynamic_non_background_bbox_crop"
+      },
+      "onnx_checker_ok": true,
+      "num_parameters": 173,
+      "initializer_memory_bytes": 940,
+      "file_size_bytes": 3769,
+      "estimated_cost": 1113,
+      "estimated_score": 17.985185648724453,
+      "file_size_ok": true,
+      "forbidden_ops_ok": true,
+      "forbidden_ops_found": [],
+      "static_shapes_ok": true,
+      "static_shape_failures": [],
+      "validation_passed": true,
+      "validation": {
+        "passed": true,
+        "num_cases": 3,
+        "failed_cases": [],
+        "case_results": [
+          {
+            "case_index": 0,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          },
+          {
+            "case_index": 1,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          },
+          {
+            "case_index": 2,
+            "passed": true,
+            "num_mismatched_cells": 0,
+            "mismatches": [],
+            "zero_confidence_cells": [],
+            "nonzero_padding_cells": []
+          }
+        ]
+      },
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "task_id": "task155",
+      "rule_name": "ComposedRuleSearch",
+      "priority": 25,
+      "model_path": "outputs\\candidates\\task155_ComposedRuleSearch.onnx",
+      "metadata": {
+        "extractor": "bbox_of_all_non_background",
+        "extractor_color": 0,
+        "finisher": "mirror_vertical",
+        "color_map": {
+          "8": 8,
+          "7": 7,
+          "4": 4,
+          "2": 2,
+          "3": 3,
+          "1": 1
+        },
+        "builder_available": true,
+        "blocked_reason": ""
       },
       "onnx_checker_ok": true,
       "num_parameters": 173,

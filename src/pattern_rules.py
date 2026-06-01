@@ -15,7 +15,10 @@ from .onnx_builders import (
     build_panel_binary_op_model,
     build_color_map_model,
     build_dynamic_bbox_extreme_color_swap_model,
+    build_dynamic_color_bbox_crop_model,
+    build_dynamic_frame_interior_crop_model,
     build_dynamic_non_background_bbox_crop_model,
+    build_dynamic_quadrant_panel_select_model,
     build_dynamic_fill_translation_model,
     build_dynamic_single_color_translation_model,
     build_identity_model,
@@ -1547,6 +1550,100 @@ class PanelSemanticRule(BaseRule):
         metadata: dict[str, Any],
     ) -> CandidateModel:
         raise NotImplementedError("PanelSemanticRule is probe-only until dynamic panel selection is compiled")
+
+
+def _center_cross_quadrants(grid: list[list[int]]) -> list[list[list[int]]] | None:
+    height, width = grid_shape(grid)
+    if height != width or height < 3 or height % 2 == 0:
+        return None
+    panel_size = height // 2
+    center = panel_size
+    separator_color = grid[center][center]
+    if any(grid[center][col] != separator_color for col in range(width)):
+        return None
+    if any(grid[row][center] != separator_color for row in range(height)):
+        return None
+    return [
+        _crop_grid(grid, 0, 0, panel_size, panel_size),
+        _crop_grid(grid, 0, center + 1, panel_size, panel_size),
+        _crop_grid(grid, center + 1, 0, panel_size, panel_size),
+        _crop_grid(grid, center + 1, center + 1, panel_size, panel_size),
+    ]
+
+
+def _panel_difference_score(panel: list[list[int]], other: list[list[int]]) -> int:
+    height, width = grid_shape(panel)
+    if grid_shape(other) != (height, width):
+        raise ValueError("panel shapes must match")
+    return sum(
+        1
+        for row in range(height)
+        for col in range(width)
+        if panel[row][col] != other[row][col]
+    )
+
+
+def _unique_max_difference_panel(panels: list[list[list[int]]]) -> int | None:
+    scores = [
+        sum(_panel_difference_score(panel, other) for other_index, other in enumerate(panels) if other_index != panel_index)
+        for panel_index, panel in enumerate(panels)
+    ]
+    max_score = max(scores)
+    if max_score <= 0 or scores.count(max_score) != 1:
+        return None
+    return scores.index(max_score)
+
+
+class DynamicQuadrantPanelSelectRule(BaseRule):
+    """Select the unique-pattern quadrant from a 2x2 center-cross panel grid."""
+
+    name = "DynamicQuadrantPanelSelectRule"
+    priority = 27
+
+    def match(self, task: dict) -> RuleResult:
+        cases = _train_cases(task)
+        color_map: dict[int, int] = {}
+        for case in cases:
+            panels = _center_cross_quadrants(case["input"])
+            if panels is None:
+                return RuleResult(self.name, False, "REJECT", "input is not an odd square 2x2 center-cross panel grid", {})
+            panel_size, _ = grid_shape(panels[0])
+            if grid_shape(case["output"]) != (panel_size, panel_size):
+                return RuleResult(self.name, False, "REJECT", "output shape does not match quadrant shape", {})
+            selected_index = _unique_max_difference_panel(panels)
+            if selected_index is None:
+                return RuleResult(self.name, False, "REJECT", "no unique-pattern quadrant", {})
+            current_map = _infer_color_map_from_pairs(panels[selected_index], case["output"])
+            if current_map is None:
+                return RuleResult(self.name, False, "REJECT", "selected quadrant does not match output under a color map", {})
+            for old_color, new_color in current_map.items():
+                existing = color_map.get(old_color)
+                if existing is not None and existing != new_color:
+                    return RuleResult(self.name, False, "REJECT", "inconsistent color map across train cases", {})
+                color_map[old_color] = new_color
+
+        return RuleResult(
+            self.name,
+            True,
+            "MATCH",
+            "matched dynamic 2x2 center-cross unique-pattern panel selection",
+            {
+                "layout": "center_cross_2x2",
+                "selector": "unique_max_panel_difference",
+                "transform": "identity",
+                "color_map": color_map,
+            },
+        )
+
+    def build(
+        self,
+        task_id: str,
+        task: dict,
+        output_path: str,
+        metadata: dict[str, Any],
+    ) -> CandidateModel:
+        build_dynamic_quadrant_panel_select_model(metadata["color_map"], output_path)
+        return CandidateModel(task_id, self.name, output_path, metadata)
 
 
 class PanelSelectByColorRule(BaseRule):
@@ -3459,6 +3556,19 @@ def _bbox_crop_candidates_for_case(case: dict) -> list[dict[str, Any]]:
     return candidates
 
 
+def _merge_color_maps(left: dict[int, int], right: dict[int, int]) -> dict[int, int] | None:
+    merged = dict(left)
+    for old_color, new_color in right.items():
+        existing = merged.get(old_color)
+        if existing is not None and existing != new_color:
+            return None
+        merged[old_color] = new_color
+    return merged
+
+
+BUILDABLE_BBOX_KINDS = {"bbox_of_all_non_background", "bbox_of_color", "bbox_of_unique_color_component"}
+
+
 class DynamicBBoxCropRule(BaseRule):
     """Probe dynamic bbox/object crop and normalization semantics."""
 
@@ -3471,18 +3581,26 @@ class DynamicBBoxCropRule(BaseRule):
         for case in cases:
             current: dict[str, dict[str, Any]] = {}
             for candidate in _bbox_crop_candidates_for_case(case):
-                color_map = _infer_color_map_from_pairs(candidate["grid"], case["output"])
-                if color_map is None:
-                    continue
-                key = f"{candidate['kind']}:{candidate['color']}:crop_colormap"
-                current[key] = {
-                    "kind": candidate["kind"],
-                    "color": candidate["color"],
-                    "mode": "bbox_crop_colormap",
-                    "color_map": color_map,
-                    "builder_available": False,
-                    "blocked_reason": "builder_missing_dynamic_bbox",
+                transforms = {
+                    "identity": candidate["grid"],
+                    "mirror_horizontal": _mirror_grid(candidate["grid"], "horizontal"),
+                    "mirror_vertical": _mirror_grid(candidate["grid"], "vertical"),
                 }
+                for transform, transformed in transforms.items():
+                    color_map = _infer_color_map_from_pairs(transformed, case["output"])
+                    if color_map is None:
+                        continue
+                    buildable = candidate["kind"] in BUILDABLE_BBOX_KINDS
+                    key = f"{candidate['kind']}:{candidate['color']}:{transform}:crop_colormap"
+                    current[key] = {
+                        "kind": candidate["kind"],
+                        "color": candidate["color"],
+                        "transform": transform,
+                        "mode": "bbox_crop_colormap",
+                        "color_map": color_map,
+                        "builder_available": buildable,
+                        "blocked_reason": "" if buildable else "builder_missing_dynamic_bbox",
+                    }
             if candidates is None:
                 candidates = current
             else:
@@ -3491,25 +3609,20 @@ class DynamicBBoxCropRule(BaseRule):
                     item = current.get(key)
                     if item is None:
                         continue
-                    color_map = dict(previous["color_map"])
-                    compatible = True
-                    for old_color, new_color in item["color_map"].items():
-                        existing = color_map.get(old_color)
-                        if existing is not None and existing != new_color:
-                            compatible = False
-                            break
-                        color_map[old_color] = new_color
-                    if compatible:
+                    color_map = _merge_color_maps(previous["color_map"], item["color_map"])
+                    if color_map is not None:
                         merged[key] = {**previous, "color_map": color_map}
                 candidates = merged
             if not candidates:
                 return RuleResult(self.name, False, "REJECT", "no dynamic bbox crop matches all train cases", {})
-        best = sorted(candidates.values(), key=lambda item: (item["kind"], item["color"]))[0]
+        buildable = [candidate for candidate in candidates.values() if candidate.get("builder_available")]
+        best_pool = buildable if buildable else list(candidates.values())
+        best = sorted(best_pool, key=lambda item: (item["kind"], item["color"], item["transform"]))[0]
         return RuleResult(
             self.name,
             True,
             "MATCH",
-            f"matched dynamic bbox crop kind={best['kind']} color={best['color']}",
+            f"matched dynamic bbox crop kind={best['kind']} color={best['color']} transform={best['transform']}",
             best,
         )
 
@@ -3520,7 +3633,23 @@ class DynamicBBoxCropRule(BaseRule):
         output_path: str,
         metadata: dict[str, Any],
     ) -> CandidateModel:
-        raise NotImplementedError("DynamicBBoxCropRule is probe-only until dynamic bbox crop is compiled")
+        if metadata["kind"] == "bbox_of_all_non_background":
+            build_dynamic_non_background_bbox_crop_model(
+                int(metadata["color"]),
+                metadata["color_map"],
+                output_path,
+                transform=metadata.get("transform", "identity"),
+            )
+        elif metadata["kind"] in {"bbox_of_color", "bbox_of_unique_color_component"}:
+            build_dynamic_color_bbox_crop_model(
+                int(metadata["color"]),
+                metadata["color_map"],
+                output_path,
+                transform=metadata.get("transform", "identity"),
+            )
+        else:
+            raise NotImplementedError(f"DynamicBBoxCropRule cannot build kind={metadata['kind']}")
+        return CandidateModel(task_id, self.name, output_path, metadata)
 
 
 class DynamicNonBackgroundBBoxCropRule(BaseRule):
@@ -3719,12 +3848,13 @@ class FrameInteriorRule(BaseRule):
                     interior = _crop_grid(case["input"], top + 1, left + 1, height - 2, width - 2)
                     color_map = _infer_color_map_from_pairs(interior, case["output"])
                     if color_map is not None:
+                        buildable = _bbox_for_colors(case["input"], {color}) == bbox
                         current[f"frame_interior_crop:{color}"] = {
                             "mode": "frame_interior_crop",
                             "frame_color": color,
                             "color_map": color_map,
-                            "builder_available": False,
-                            "blocked_reason": "builder_missing_dynamic_bbox",
+                            "builder_available": buildable,
+                            "blocked_reason": "" if buildable else "frame_color_bbox_contains_extra_cells",
                         }
                     for fill_color in range(10):
                         filled = [row[:] for row in case["input"]]
@@ -3742,10 +3872,24 @@ class FrameInteriorRule(BaseRule):
             if candidates is None:
                 candidates = current
             else:
-                candidates = {key: value for key, value in candidates.items() if key in current}
+                merged: dict[str, dict[str, Any]] = {}
+                for key, previous in candidates.items():
+                    item = current.get(key)
+                    if item is None:
+                        continue
+                    if previous["mode"] == "frame_interior_crop":
+                        color_map = _merge_color_maps(previous["color_map"], item["color_map"])
+                        if color_map is None:
+                            continue
+                        merged[key] = {**previous, "color_map": color_map}
+                    else:
+                        merged[key] = previous
+                candidates = merged
             if not candidates:
                 return RuleResult(self.name, False, "REJECT", "no frame interior transform matches all train cases", {})
-        best = sorted(candidates.values(), key=lambda item: (item["mode"], item.get("frame_color", -1)))[0]
+        buildable = [candidate for candidate in candidates.values() if candidate.get("builder_available")]
+        best_pool = buildable if buildable else list(candidates.values())
+        best = sorted(best_pool, key=lambda item: (item["mode"], item.get("frame_color", -1)))[0]
         return RuleResult(
             self.name,
             True,
@@ -3761,7 +3905,14 @@ class FrameInteriorRule(BaseRule):
         output_path: str,
         metadata: dict[str, Any],
     ) -> CandidateModel:
-        raise NotImplementedError("FrameInteriorRule is probe-only until dynamic frame bbox is compiled")
+        if metadata.get("mode") != "frame_interior_crop":
+            raise NotImplementedError("FrameInteriorRule currently builds only frame_interior_crop candidates")
+        build_dynamic_frame_interior_crop_model(
+            int(metadata["frame_color"]),
+            metadata["color_map"],
+            output_path,
+        )
+        return CandidateModel(task_id, self.name, output_path, metadata)
 
 
 def _neighbor_count_same_color(grid: list[list[int]], row: int, col: int, color: int) -> int:
@@ -3905,13 +4056,18 @@ class ComposedRuleSearch(BaseRule):
                     if color_map is None:
                         continue
                     key = f"{extractor['kind']}:{extractor.get('color', -1)}:{finisher}:color_map"
+                    buildable = extractor["kind"] in BUILDABLE_BBOX_KINDS and finisher in {
+                        "identity",
+                        "mirror_horizontal",
+                        "mirror_vertical",
+                    }
                     current[key] = {
                         "extractor": extractor["kind"],
                         "extractor_color": extractor.get("color", -1),
                         "finisher": finisher,
                         "color_map": color_map,
-                        "builder_available": False,
-                        "blocked_reason": "requires_composed_rule",
+                        "builder_available": buildable,
+                        "blocked_reason": "" if buildable else "requires_composed_rule",
                     }
             if candidates is None:
                 candidates = current
@@ -3921,20 +4077,15 @@ class ComposedRuleSearch(BaseRule):
                     item = current.get(key)
                     if item is None:
                         continue
-                    color_map = dict(previous["color_map"])
-                    compatible = True
-                    for old_color, new_color in item["color_map"].items():
-                        existing = color_map.get(old_color)
-                        if existing is not None and existing != new_color:
-                            compatible = False
-                            break
-                        color_map[old_color] = new_color
-                    if compatible:
+                    color_map = _merge_color_maps(previous["color_map"], item["color_map"])
+                    if color_map is not None:
                         merged[key] = {**previous, "color_map": color_map}
                 candidates = merged
             if not candidates:
                 return RuleResult(self.name, False, "REJECT", "no two-step composition matches all train cases", {})
-        best = sorted(candidates.values(), key=lambda item: (item["extractor"], item["finisher"]))[0]
+        buildable = [candidate for candidate in candidates.values() if candidate.get("builder_available")]
+        best_pool = buildable if buildable else list(candidates.values())
+        best = sorted(best_pool, key=lambda item: (item["extractor"], item["finisher"]))[0]
         return RuleResult(
             self.name,
             True,
@@ -3950,7 +4101,26 @@ class ComposedRuleSearch(BaseRule):
         output_path: str,
         metadata: dict[str, Any],
     ) -> CandidateModel:
-        raise NotImplementedError("ComposedRuleSearch is probe-only until composition builders are compiled")
+        transform = metadata.get("finisher", "identity")
+        if transform not in {"identity", "mirror_horizontal", "mirror_vertical"}:
+            raise NotImplementedError(f"ComposedRuleSearch cannot build finisher={transform}")
+        if metadata["extractor"] == "bbox_of_all_non_background":
+            build_dynamic_non_background_bbox_crop_model(
+                int(metadata["extractor_color"]),
+                metadata["color_map"],
+                output_path,
+                transform=transform,
+            )
+        elif metadata["extractor"] in {"bbox_of_color", "bbox_of_unique_color_component"}:
+            build_dynamic_color_bbox_crop_model(
+                int(metadata["extractor_color"]),
+                metadata["color_map"],
+                output_path,
+                transform=transform,
+            )
+        else:
+            raise NotImplementedError(f"ComposedRuleSearch cannot build extractor={metadata['extractor']}")
+        return CandidateModel(task_id, self.name, output_path, metadata)
 
 
 def second_round_probe_rules() -> list[BaseRule]:
@@ -3982,6 +4152,7 @@ def third_round_probe_rules() -> list[BaseRule]:
         ObjectSelectionRule(),
         LocalNeighborhoodRewriteRule(),
         PanelSemanticRule(),
+        DynamicQuadrantPanelSelectRule(),
         DynamicBBoxCropRule(),
         FrameInteriorRule(),
         ObjectEditRule(),
@@ -4017,6 +4188,10 @@ def first_version_rules() -> list[BaseRule]:
         RectangleAndLineRule(),
         ObjectSelectionRule(),
         LocalNeighborhoodRewriteRule(),
+        DynamicQuadrantPanelSelectRule(),
+        DynamicBBoxCropRule(),
         DynamicNonBackgroundBBoxCropRule(),
+        FrameInteriorRule(),
+        ComposedRuleSearch(),
         DynamicBBoxExtremeColorSwapRule(),
     ]
