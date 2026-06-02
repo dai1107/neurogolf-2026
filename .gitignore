@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+outputs/*.zip
+outputs/blend_debug/
+outputs/blended_onnx/
+outputs/archive_*_onnx/
+outputs/archive_repaired*/
+outputs/archive_static_shape_repaired/
+outputs/archive_negative_conv_repaired/
+debug_pack.zip

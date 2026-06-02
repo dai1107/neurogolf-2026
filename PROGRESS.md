@@ -251,6 +251,62 @@ git diff --check
 2. 对 `task036` 和 `task174` 谨慎处理；当前命中依赖 component selection，不应直接用宽松 probe 进入正式规则。
 3. `FrameInteriorRule` 剩余 5 个命中里，先找是否存在静态 frame position 或可用 color-role bbox 子类，再写 builder。
 
+## 2026-06-02 - Archive repair reached 400/400 local validated models
+
+- Added reproducible archive repair paths in `src/repair_archive_padding.py`.
+- Repaired `task277` by replacing two dynamic Pad pads inputs with static int64 initializers. Repaired model is valid with estimated cost 29994 and file size 57173 bytes.
+- Repaired raw archive ORT default crashes for `task042`, `task094`, `task168`, `task184`, `task224`, and `task288` by rewriting Conv nodes with negative `pads` into `Slice` plus Conv with non-negative pads.
+- Cost after shared Slice constants:
+  - `task042`: cost 1356, file 11833
+  - `task094`: cost 910, file 4915
+  - `task168`: cost 1667, file 9227
+  - `task184`: cost 340, file 7610
+  - `task224`: cost 1240, file 7753
+  - `task288`: cost 821, file 13869
+- Built `outputs/archive_all_repaired_candidate_onnx` with 400 candidate ONNX files.
+- Full strict blend output:
+  - selected tasks: 400 / 400
+  - missing tasks: 0
+  - source counts: archive 384, current 16
+  - selected estimated cost total: 10530917
+  - selected ONNX file size total: 14815565 bytes
+- Final validated artifacts:
+  - `outputs/archive_all_repaired_verified_onnx`
+  - `outputs/reports/archive_all_repaired_blend_report.csv`
+  - `outputs/submission_validated_400.zip`
+  - `outputs/submission.zip`
+- `outputs/submission.zip` inspection passed with 400 ONNX models.
+
+Validation run this round:
+
+```powershell
+python -m pytest -q tests\test_repair_archive_padding.py
+python -m src.repair_archive_padding --archive-dir archive --output-dir outputs\archive_static_shape_repaired --repair-report outputs\reports\archive_static_shape_repair_report.csv --task-ids task277 --mode task277_static_pads
+python -m src.repair_archive_padding --archive-dir archive --output-dir outputs\archive_negative_conv_repaired --repair-report outputs\reports\archive_negative_conv_repair_report.csv --task-ids "task042,task094,task168,task184,task224,task288" --mode negative_conv_pads
+python -m src.blend_archive_submission --archive-dir outputs\archive_all_repaired_candidate_onnx --current-dir outputs\onnx --blended-dir outputs\archive_all_repaired_verified_onnx --report outputs\reports\archive_all_repaired_blend_report.csv --zip outputs\submission_validated_400.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission_validated_400.zip
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m compileall src tests
+python -m pytest -q
+git diff --check
+```
+
+Notes:
+
+- Local train validation is not a guaranteed official leaderboard score.
+- The repaired six raw archive models were already checker/static/forbidden-op clean; the failure was default onnxruntime graph optimization crashing on negative Conv pads.
+
+## 2026-06-02 - Repository cleanup
+
+- Removed Python/pytest caches: `.pytest_cache`, `src/__pycache__`, `tests/__pycache__`.
+- Removed duplicate or obsolete generated ONNX directories from earlier archive repair/blend rounds.
+- Kept the current validated 400-model directory: `outputs/archive_all_repaired_verified_onnx`.
+- Removed duplicate and obsolete zip artifacts, including `outputs/submission_validated_400.zip` after confirming its SHA-256 hash matched `outputs/submission.zip`.
+- Removed debug-only artifacts: `debug_pack.zip`, `outputs/blend_debug`, and `outputs/blend_debug_042.zip`.
+- Added `.gitignore` entries for caches and generated zip/archive output directories so future runs do not reintroduce these files into git status.
+
+Current retained submission artifact: `outputs/submission.zip`.
+
 ## 风险提示
 
 - 剩余 probe-only 规则仍不能加入 `first_version_rules()`。

@@ -1015,3 +1015,92 @@ git diff --check
 `优化策略.md` 中要求的策略已逐项完成到安全状态：Python probe、候选发现报告、测试和全量验证均已完成；动态 selector / bbox / frame / composition 的 ONNX builder 仍按安全原则阻断，未进入 submission。
 
 下一轮应优先从 `candidate_discovery_report.csv` 中同时命中 DynamicBBox/Frame/Composition 的任务开始做最小安全 builder，尤其是 `task031`, `task036`, `task174`, `task259`。
+
+## 2026-06-02 - Archive ONNX repair and 400-model validated submission
+
+### Goal
+
+Continue from the interrupted archive-blend work: analyze unfinished tasks, repair safe existing models, and rebuild a validated submission without adding unverified models.
+
+### Findings
+
+- Existing validated package had 393 models.
+- `task277` archive model passed train validation but failed only static shape inference on dynamic Pad outputs.
+- The remaining six raw archive models (`task042`, `task094`, `task168`, `task184`, `task224`, `task288`) passed ONNX checker, forbidden-op checks, static-shape checks, and cost checks, but default onnxruntime evaluation crashed with return code 3221225477.
+- Running those six with ORT optimizations disabled succeeded, pointing to an ORT graph-optimization crash rather than a rule mismatch.
+- Graph inspection found Conv nodes with negative `pads` attributes in those six models. The repair rewrites each such Conv as `Slice` crop plus Conv with non-negative pads, preserving output behavior under default ORT.
+
+### Implementation
+
+- Added `repair_task277_static_pads()`:
+  - replaces `task277` dynamic Pad pads inputs with static int64 initializers;
+  - keeps graph output shape static `[1, 10, 30, 30]`;
+  - validates with shape inference and ONNX checker before saving.
+- Added `repair_negative_conv_pads()`:
+  - detects Conv nodes with negative `pads`;
+  - inserts static `Slice` nodes to crop the input;
+  - rewrites Conv `pads` to non-negative values;
+  - reuses identical Slice constants within each model to reduce initializer cost.
+- Added `tests/test_repair_archive_padding.py` covering both repair paths against archive fixtures.
+
+### Repaired Tasks
+
+- `task277`: static Pad repair, valid, estimated cost 29994, file size 57173.
+- `task042`: negative Conv pads repair, valid, estimated cost 1356, file size 11833.
+- `task094`: negative Conv pads repair, valid, estimated cost 910, file size 4915.
+- `task168`: negative Conv pads repair, valid, estimated cost 1667, file size 9227.
+- `task184`: negative Conv pads repair, valid, estimated cost 340, file size 7610.
+- `task224`: negative Conv pads repair, valid, estimated cost 1240, file size 7753.
+- `task288`: negative Conv pads repair, valid, estimated cost 821, file size 13869.
+
+### Commands
+
+```powershell
+python -m pytest -q tests\test_repair_archive_padding.py
+python -m src.repair_archive_padding --archive-dir archive --output-dir outputs\archive_static_shape_repaired --repair-report outputs\reports\archive_static_shape_repair_report.csv --task-ids task277 --mode task277_static_pads
+python -m src.repair_archive_padding --archive-dir archive --output-dir outputs\archive_negative_conv_repaired --repair-report outputs\reports\archive_negative_conv_repair_report.csv --task-ids "task042,task094,task168,task184,task224,task288" --mode negative_conv_pads
+python -m src.blend_archive_submission --archive-dir outputs\archive_all_repaired_candidate_onnx --current-dir outputs\onnx --blended-dir outputs\archive_all_repaired_verified_onnx --report outputs\reports\archive_all_repaired_blend_report.csv --zip outputs\submission_validated_400.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission_validated_400.zip
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m compileall src tests
+python -m pytest -q
+git diff --check
+```
+
+### Results
+
+- Full blend selected 400 / 400 tasks.
+- Missing tasks: 0.
+- Source counts: archive 384, current 16.
+- Selected estimated cost total: 10530917.
+- Selected ONNX file size total: 14815565 bytes.
+- `outputs/submission_validated_400.zip`: inspection passed, 400 ONNX models.
+- `outputs/submission.zip`: updated from the validated 400 zip and inspection passed, 400 ONNX models.
+- Full tests: 63 passed.
+- `git diff --check`: passed, with only the existing LF-to-CRLF warning for `src/repair_archive_padding.py`.
+
+### Risk
+
+- This is strict local train validation plus local default onnxruntime validation, not a guaranteed official leaderboard score.
+- The six repaired archive models are behavioral graph rewrites of already small archive models; they should remain more reliable than disabling ORT optimizations in the validator.
+
+## 2026-06-02 - Repository cleanup and artifact deduplication
+
+### Goal
+
+Remove stale generated files and exact duplicates while preserving the current validated submission path.
+
+### Actions
+
+- Deleted Python cache directories and pytest cache.
+- Deleted obsolete archive repair/blend output directories from previous rounds.
+- Deleted candidate/validated zip files superseded by `outputs/submission.zip`.
+- Verified before deletion that `outputs/submission_validated_400.zip` and `outputs/submission.zip` had identical SHA-256 hash:
+  `EB144EC0C55BE84897142F7A636F11F776E10778DF4B4E2DD382E644AE166C3A`.
+- Kept `outputs/archive_all_repaired_verified_onnx` as the canonical validated 400-model ONNX directory.
+- Added `.gitignore` coverage for caches, generated zip files, debug packs, and archive output directories.
+
+### Risk
+
+- This cleanup did not change model source code or ONNX graph contents.
+- Historical reports were retained for auditability; obsolete generated model directories can be regenerated from the logged commands if needed.
