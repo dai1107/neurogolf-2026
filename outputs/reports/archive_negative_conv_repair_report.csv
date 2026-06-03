@@ -1,7 +1,0 @@
-task_id,status,reason
-task042,repaired,rewritten_negative_conv_pads=18
-task094,repaired,rewritten_negative_conv_pads=3
-task168,repaired,rewritten_negative_conv_pads=12
-task184,repaired,rewritten_negative_conv_pads=2
-task224,repaired,rewritten_negative_conv_pads=8
-task288,repaired,rewritten_negative_conv_pads=16

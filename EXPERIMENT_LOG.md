@@ -1104,3 +1104,59 @@ Remove stale generated files and exact duplicates while preserving the current v
 
 - This cleanup did not change model source code or ONNX graph contents.
 - Historical reports were retained for auditability; obsolete generated model directories can be regenerated from the logged commands if needed.
+
+## 2026-06-03 - Independent current model-bank build
+
+### Goal
+
+Make `outputs/onnx` the canonical best-known model bank so `archive` is no
+longer needed to rebuild the 400-task submission.
+
+### Implementation
+
+- Copied the previously selected best validated models into `outputs/onnx`.
+- Added `src/build_current_model_submission.py` to validate every
+  `outputs/onnx/taskNNN.onnx`, copy passing models to a temporary verified
+  directory, and build `outputs/submission.zip`.
+- Added `tests/test_build_current_model_submission.py` for successful local
+  model-bank packaging and incomplete-bank rejection.
+- Added a guard so the verified output directory cannot be the same directory
+  as the source model bank, and stale verified `task*.onnx` files are removed
+  before each rebuild.
+- Added `EXTERNAL_OPTIMIZATION_CONTEXT.md` with validation commands, current
+  metrics, and the highest-cost optimization targets.
+
+### Results
+
+- Full local validation selected 400 / 400 tasks.
+- Missing or invalid tasks: 0.
+- Estimated cost total: 10530917.
+- ONNX file size total: 14815565 bytes.
+- `outputs/submission.zip`: inspection passed with 400 ONNX models.
+- Highest-cost current targets: `task133`, `task084`, `task209`, `task076`,
+  `task157`, `task200`, `task233`, `task025`, `task367`, `task366`.
+- Final cleanup removed the baseline `archive` directory, obsolete archive/blend
+  reports, duplicate generated ONNX directories, temporary validation output,
+  and cache directories.
+- Full pytest passed with 64 passed and 2 skipped.
+- `python -m compileall src tests` passed.
+- `git diff --check` passed with only LF-to-CRLF warnings for Markdown logs.
+
+### Validation Commands
+
+```powershell
+python -m src.build_current_model_submission --data-dir task --model-dir outputs\onnx --validated-dir outputs\current_model_bank_verified_onnx --report outputs\reports\current_model_bank_report.csv --zip outputs\submission.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m pytest -q tests\test_build_current_model_submission.py
+python -m pytest -q
+python -m compileall src tests
+git diff --check
+```
+
+### Risk
+
+- This is strict local train validation, not a guaranteed official leaderboard
+  score.
+- The archived baseline is no longer a required dependency, but the current
+  models still inherit some high-cost baseline graphs that should be optimized
+  next.

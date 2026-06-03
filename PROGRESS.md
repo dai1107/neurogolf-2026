@@ -307,6 +307,37 @@ Notes:
 
 Current retained submission artifact: `outputs/submission.zip`.
 
+## 2026-06-03 - Current ONNX bank promoted to independent 400-model submission
+
+- Promoted the best-known validated 400 ONNX models into `outputs/onnx`.
+- Added `src.build_current_model_submission` so `outputs/submission.zip` can be rebuilt from `outputs/onnx` without reading `archive`.
+- Added focused tests for local model-bank packaging and incomplete-bank rejection.
+- Full local model-bank validation selected 400 / 400 tasks with 0 missing or invalid tasks.
+- Current estimated cost total: 10530917.
+- Current ONNX file size total: 14815565 bytes.
+- `outputs/submission.zip` inspection passed with 400 ONNX entries.
+- Added `EXTERNAL_OPTIMIZATION_CONTEXT.md` for external optimization review.
+- Final verification passed: full pytest reported 64 passed and 2 skipped.
+- `python -m compileall src tests` passed.
+- `git diff --check` passed with only LF-to-CRLF warnings for Markdown logs.
+- Removed `archive`, stale archive/blend reports, duplicate verified model directories, temporary validation output, and cache directories.
+
+Validation commands used:
+
+```powershell
+python -m src.build_current_model_submission --data-dir task --model-dir outputs\onnx --validated-dir outputs\current_model_bank_verified_onnx --report outputs\reports\current_model_bank_report.csv --zip outputs\submission.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m pytest -q tests\test_build_current_model_submission.py
+python -m pytest -q
+python -m compileall src tests
+git diff --check
+```
+
+Notes:
+
+- `archive` is baseline history only and is no longer required to rebuild the current submission.
+- Local train validation is not a guaranteed official leaderboard score.
+
 ## 风险提示
 
 - 剩余 probe-only 规则仍不能加入 `first_version_rules()`。

@@ -1,7 +1,0 @@
-task_id,candidate_rule,python_transform_passed,onnx_builder_available,onnx_validation_passed,blocked_reason,estimated_codegen_difficulty,expected_gain_bucket
-task036,DynamicBBoxCropRule,True,False,False,builder_missing_dynamic_bbox,medium,high
-task036,FrameInteriorRule,True,False,False,frame_color_bbox_contains_extra_cells,high,medium
-task036,ComposedRuleSearch,True,False,False,requires_composed_rule,medium,high
-task079,FrameInteriorRule,True,False,False,frame_color_bbox_contains_extra_cells,high,medium
-task174,DynamicBBoxCropRule,True,False,False,builder_missing_dynamic_bbox,medium,high
-task174,ComposedRuleSearch,True,False,False,requires_composed_rule,medium,high

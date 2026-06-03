@@ -1,2 +1,0 @@
-task_id,selected_source,selected_model_path,selected_estimated_cost,selected_file_size_bytes,archive_valid,archive_estimated_cost,archive_file_size_bytes,archive_failure_reason,current_valid,current_estimated_cost,current_file_size_bytes,current_failure_reason
-task042,,,,,False,,,evaluation_subprocess_failed: returncode=3221225477 ,False,,,missing_model
