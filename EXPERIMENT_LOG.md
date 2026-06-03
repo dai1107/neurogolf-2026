@@ -1,5 +1,128 @@
 # 实验日志
 
+## 2026-06-03 23:20 - Continue high-cost top-task optimization
+
+### Goal
+
+Continue optimizing the remaining high-cost tasks after the earlier
+`task396` replacement. Correctness and local strict validation remained the
+gate for every replacement; no candidate was copied into `outputs/onnx` unless
+it passed validation and reduced estimated cost.
+
+### Implementation
+
+- Added `DynamicLineProjectionRule` and
+  `build_dynamic_line_projection_model()`.
+  - Targets same-size grids with one or more full horizontal/vertical lines.
+  - Projects stray cells of a full-line color to the adjacent row/column next
+    to that line.
+  - Used for `task025`.
+- Added `DynamicRectangularCavityFillRule` and
+  `build_dynamic_rectangular_cavity_fill_model()`.
+  - Targets same-size 0/5 inputs where output only changes color 0 to color 4.
+  - Fills rectangular color-0 cavities bounded by color-5 top/bottom walls and
+    color-5 or grid-boundary side walls.
+  - Includes a side-boundary termination check; this was required to pass the
+    labelled `task367` test and arc-gen splits without overfilling exterior
+    rectangular gaps.
+- Added `TwoMarkerHorizontalBandRule` and
+  `build_two_marker_horizontal_bands_model()`.
+  - Targets shared-shape grids with exactly two nonzero marker cells on shared
+    rows.
+  - Dynamically extracts the two marker colors and draws fixed top/bottom
+    horizontal band frames.
+  - Used for `task028`.
+- Added focused tests for the new rectangular-cavity and two-marker band
+  builders; the line-projection focused test was also kept in
+  `tests/test_pattern_rules.py`.
+
+### Replacement Results
+
+- `task025`
+  - rule: `DynamicLineProjectionRule`
+  - old estimated cost: 332565
+  - new estimated cost: 1289
+  - delta: 331276
+  - extra validation: train 3/3, test 1/1, arc-gen 262/262 passed
+- `task367`
+  - rule: `DynamicRectangularCavityFillRule`
+  - old estimated cost: 295949
+  - new estimated cost: 200585
+  - delta: 95364
+  - extra validation: train 3/3, test 1/1, arc-gen 262/262 passed
+- `task028`
+  - rule: `TwoMarkerHorizontalBandRule`
+  - old estimated cost: 63050
+  - new estimated cost: 22600
+  - delta: 40450
+  - extra validation: train 2/2, test 1/1, arc-gen 262/262 passed
+
+### Model Bank Result
+
+Final rebuild used a 300s per-model timeout after a first 120s rebuild hit a
+transient `task191` timeout. Standalone `task191` validation passed before the
+final rebuild.
+
+- selected tasks: 400 / 400
+- missing or invalid tasks: 0
+- estimated cost total: 7575450
+- ONNX file size total: 12203846 bytes
+- `outputs/submission.zip`: 1379041 bytes
+- `python -m src.inspect_submission --zip outputs\submission.zip`: passed,
+  400 ONNX models
+
+### Remaining High-Cost Tasks
+
+After the rebuild, the highest-cost tasks are:
+
+`task133`, `task209`, `task076`, `task157`, `task233`, `task366`,
+`task367`, `task363`, `task319`, `task255`.
+
+Manual inspection notes:
+
+- `task319`: dynamic crop/extraction, but selected component is not safely
+  determined by current color/bbox/area selectors.
+- `task076`: orientation-aware copy of marker patterns around color-4 objects;
+  no compact safe builder was promoted.
+- `task157`: transfers bottom color-5 masks into a top color-2 template; not a
+  simple shift or local rewrite.
+- `task255`: large-region color-3 fill over 30x30 grids; likely needs a more
+  specialized large blank-region rule.
+
+### Commands
+
+```powershell
+python -m pytest -q tests\test_pattern_rules.py -k line_projection
+python -m pytest -q tests\test_pattern_rules.py -k "rectangular_cavity or two_marker_horizontal"
+python -m src.search_symbolic_replacements --data-dir task --current-model-dir outputs\onnx --current-report outputs\reports\current_model_bank_report.csv --candidate-dir outputs\candidates\replacements --report outputs\reports\replacement_search_report_task025.csv --task-ids task025 --replace --timeout-seconds 120
+python -m src.search_symbolic_replacements --data-dir task --current-model-dir outputs\onnx --current-report outputs\reports\current_model_bank_report.csv --candidate-dir outputs\candidates\replacements --report outputs\reports\replacement_search_report_task367.csv --task-ids task367 --replace --timeout-seconds 120
+python -m src.search_symbolic_replacements --data-dir task --current-model-dir outputs\onnx --current-report outputs\reports\current_model_bank_report.csv --candidate-dir outputs\candidates\replacements --report outputs\reports\replacement_search_report_task028.csv --task-ids task028 --replace --timeout-seconds 120
+python -m pytest -q tests\test_pattern_rules.py
+python -m pytest -q tests\test_high_cost_replacement_search.py
+python -m compileall src tests
+python -m src.evaluate_onnx_candidate --model outputs\onnx\task191.onnx --task task\task191.json
+python -m src.build_current_model_submission --data-dir task --model-dir outputs\onnx --validated-dir outputs\current_model_bank_verified_onnx --report outputs\reports\current_model_bank_report.csv --zip outputs\submission.zip --timeout-seconds 300
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m pytest -q
+git diff --check
+```
+
+### Validation
+
+- Focused rectangular/band tests: 2 passed.
+- `tests\test_pattern_rules.py`: 60 passed.
+- `tests\test_high_cost_replacement_search.py`: 2 passed.
+- Full pytest: 74 passed, 2 skipped.
+- `python -m compileall src tests`: passed.
+- `inspect_submission`: passed, 400 ONNX models.
+- `git diff --check`: no whitespace errors; only LF-to-CRLF warnings.
+
+### Risk
+
+These are local strict-validation and local estimated-cost improvements, not
+guaranteed official leaderboard scores. The new rules are conservative MATCH
+rules; inspected but uncertain tasks were left unchanged.
+
 ## 2026-06-01 22:40 - 官方错误五任务排除 + output-name-safe padding repair
 
 ### 目标
@@ -1160,3 +1283,420 @@ git diff --check
 - The archived baseline is no longer a required dependency, but the current
   models still inherit some high-cost baseline graphs that should be optimized
   next.
+
+## 2026-06-03 - High-cost symbolic replacement search workflow
+
+### Goal
+
+Implement the requested high-cost model replacement workflow and run the first
+round on the top seven current cost targets without admitting unverified models.
+
+### Implementation
+
+- Added `src/diagnose_high_cost_tasks.py`.
+  - Reads `outputs/reports/current_model_bank_report.csv`.
+  - Loads task JSON files from `task/`.
+  - Writes `outputs/reports/high_cost_task_diagnosis.csv`.
+  - Writes per-task readable analyses under
+    `outputs/reports/high_cost_task_analysis/taskNNN.md`.
+- Added `src/search_symbolic_replacements.py`.
+  - Selects top-k high-cost tasks or explicit task IDs from the current report.
+  - Runs every formal `first_version_rules()` rule.
+  - Builds ONNX candidates only for MATCH results with available builders.
+  - Validates each candidate through isolated `src.evaluate_onnx_candidate`,
+    including checker, forbidden ops, static shapes, default onnxruntime, exact
+    train validation, and file-size/cost checks.
+  - Marks `replace_recommended=True` only when the candidate is valid and lower
+    cost than the current model.
+  - Supports `--replace`; replacement copying is still gated by the validated
+    lower-cost check.
+- Added `tests/test_high_cost_replacement_search.py`.
+
+### First-Round Tasks
+
+`task133`, `task084`, `task209`, `task076`, `task157`, `task200`, `task233`.
+
+### Results
+
+- `outputs/reports/high_cost_task_diagnosis.csv`: 7 rows.
+- Per-task analysis Markdown files written for all 7 tasks.
+- `outputs/reports/replacement_search_report.csv`: 217 rows.
+- Formal rules searched: 31 per task.
+- Replacement count: 0.
+- No `outputs/onnx/taskNNN.onnx` files were replaced because all seven tasks
+  were rejected by the current formal matchers before candidate construction.
+- Full model-bank rebuild still selected 400 / 400 tasks with 0 missing or
+  invalid tasks.
+- Current estimated cost total remains 10530917.
+- Current ONNX file size total remains 14815565 bytes.
+- `outputs/submission.zip` size remains 1466160 bytes.
+
+### Commands
+
+```powershell
+python -m pytest -q tests\test_high_cost_replacement_search.py
+python -m compileall src tests
+python -m src.diagnose_high_cost_tasks --data-dir task --current-report outputs\reports\current_model_bank_report.csv --report outputs\reports\high_cost_task_diagnosis.csv --analysis-dir outputs\reports\high_cost_task_analysis --top-k 7 --task-ids task133,task084,task209,task076,task157,task200,task233
+python -m src.search_symbolic_replacements --data-dir task --current-model-dir outputs\onnx --current-report outputs\reports\current_model_bank_report.csv --candidate-dir outputs\candidates\replacements --report outputs\reports\replacement_search_report.csv --top-k 7 --task-ids task133,task084,task209,task076,task157,task200,task233 --replace --timeout-seconds 120
+python -m src.build_current_model_submission --data-dir task --model-dir outputs\onnx --validated-dir outputs\current_model_bank_verified_onnx --report outputs\reports\current_model_bank_report.csv --zip outputs\submission.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m pytest -q
+git diff --check
+```
+
+### Validation
+
+- Focused tests: 2 passed.
+- `python -m compileall src tests`: passed.
+- `python -m src.inspect_submission --zip outputs\submission.zip`: passed,
+  400 ONNX models.
+- Full pytest: 66 passed, 2 skipped.
+- `git diff --check`: passed.
+
+### Next Target
+
+The top seven remain high-cost because current formal rules cannot explain them.
+Next work should add narrow probe-first rules for same-size mask algebra and
+variable-size crop/object extraction, starting from the generated Markdown
+diagnoses rather than trying to compress the existing baseline graphs blindly.
+
+## 2026-06-03 - task084 DiagonalBottomFillRule replacement
+
+### Goal
+
+Continue the user-requested cost optimization by inspecting the task text,
+`PROGRESS.md`, `EXPERIMENT_LOG.md`, and the current model-bank report, then
+replace an existing high-cost model only if a compact formal rule passes strict
+validation and lowers estimated cost.
+
+### Analysis
+
+`task084` had the second-highest current estimated cost:
+
+- old estimated cost: 1390970
+- old ONNX file size: 1127799 bytes
+- train shapes: 15x15, 3x3, 7x7
+
+All train cases satisfy the same transformation:
+
+- input is an `n x n` square;
+- first column is one repeated nonzero color;
+- all other input cells are color 0;
+- output preserves the first column;
+- rows `0..n-2` draw color 2 on the anti-diagonal;
+- final row columns `1..n-1` are color 4;
+- all remaining active cells stay color 0.
+
+### Implementation
+
+- Added `build_dynamic_left_column_diagonal_bottom_fill_model()` in
+  `src/onnx_builders.py`.
+  - Uses static 30x30 shape.
+  - Infers active square size from one-hot padding via `Conv`, `ReduceSum`,
+    reverse `ArgMax`, and static `Offsets`.
+  - Builds dynamic boolean masks for active cells, anti-diagonal cells, and
+    bottom-row cells.
+  - Preserves input cells outside the draw masks, including color-0 active
+    background, and zeros padded output.
+- Added `DiagonalBottomFillRule` in `src/pattern_rules.py`.
+  - Returns MATCH only when every train case exactly matches the narrow
+    left-column / anti-diagonal / bottom-row specification.
+  - Added to `first_version_rules()`.
+- Added focused tests in `tests/test_pattern_rules.py`.
+  - Positive build/validate cases with multiple active sizes.
+  - Rejection checks for non-square shape and extra non-left input cells.
+
+### Replacement Result
+
+`src.search_symbolic_replacements` was run for `task084` only with `--replace`.
+The replacement gate selected the new candidate because it passed validation and
+was strictly lower cost:
+
+- rule: `DiagonalBottomFillRule`
+- new estimated cost: 722
+- new ONNX file size: 4301 bytes
+- cost delta: 1390248
+- replacement path: `outputs/onnx/task084.onnx`
+- candidate path: `outputs/candidates/replacements/task084_DiagonalBottomFillRule.onnx`
+
+### Model Bank Result
+
+After rebuilding the current model bank and submission:
+
+- selected tasks: 400 / 400
+- missing or invalid tasks: 0
+- estimated cost total: 9140669
+- ONNX file size total: 13692067 bytes
+- `outputs/submission.zip` inspection passed with 400 ONNX models
+
+### Commands
+
+```powershell
+python -m pytest -q tests\test_pattern_rules.py
+python -m src.search_symbolic_replacements --data-dir task --current-model-dir outputs\onnx --current-report outputs\reports\current_model_bank_report.csv --candidate-dir outputs\candidates\replacements --report outputs\reports\replacement_search_report.csv --task-ids task084 --replace --timeout-seconds 120
+python -m src.build_current_model_submission --data-dir task --model-dir outputs\onnx --validated-dir outputs\current_model_bank_verified_onnx --report outputs\reports\current_model_bank_report.csv --zip outputs\submission.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m pytest -q tests\test_pattern_rules.py tests\test_high_cost_replacement_search.py tests\test_build_current_model_submission.py
+python -m compileall src tests
+python -m pytest -q
+git diff --check
+```
+
+### Validation
+
+- `tests/test_pattern_rules.py`: 54 passed.
+- Focused combined tests: 59 passed.
+- Full pytest: 68 passed, 2 skipped.
+- `python -m compileall src tests`: passed.
+- `python -m src.inspect_submission --zip outputs\submission.zip`: passed,
+  400 ONNX models.
+- `git diff --check`: no whitespace errors; only LF-to-CRLF warnings.
+
+### Risk
+
+This is strict local train validation and local estimated cost. It is not a
+guaranteed official leaderboard score.
+
+## 2026-06-03 - external optimization context handoff
+
+### Goal
+
+Generate a concise file that can be handed to an external reviewer or optimizer
+so they can understand the current repository state and propose safe cost
+optimization ideas.
+
+### Output
+
+- Created `EXTERNAL_OPTIMIZATION_CONTEXT.md`.
+
+### Contents
+
+The handoff document includes:
+
+- hard ONNX and competition constraints;
+- local cost definition;
+- current canonical model bank status;
+- current submission and validation status;
+- recent successful replacements for `task084` and `task200`;
+- top-25 remaining high-cost tasks;
+- relevant source files, reports, and scripts;
+- commands to rebuild and inspect the current submission;
+- recommended external review priorities;
+- suggested response format for external optimizer feedback;
+- open questions for the highest-cost remaining tasks.
+
+### Validation
+
+No code or ONNX behavior changed in this step. The file is documentation-only.
+
+## 2026-06-03 - task200 BottomMarkerVerticalStripeRule replacement
+
+### Goal
+
+Continue quick cost optimization after the user reported a modest online score
+increase. Prefer tasks with a clear, narrow symbolic rule and avoid admitting
+uncertain probe-only rules into the model bank.
+
+### Analysis
+
+After `task084` was replaced, the next high-cost same-shape targets included
+`task133`, `task076`, `task157`, `task200`, and `task025`. `task200` was the
+clearest quick replacement candidate:
+
+- old estimated cost: 990050
+- old ONNX file size: 797905 bytes
+- train shapes: 10x10 in all cases
+- each input has exactly one nonzero marker on the bottom row
+- marker colors in train: 2, 3, 4
+
+The rule inferred from all train cases:
+
+- preserve active background cells as color 0;
+- draw the marker color in every active row at columns
+  `marker_col, marker_col + 2, marker_col + 4, ...`;
+- draw color 5 on the top row at columns `marker_col + 1 + 4k`;
+- draw color 5 on the bottom row at columns `marker_col + 3 + 4k`;
+- clip all generated positions to the active width and zero padded output.
+
+`task157`, `task025`, `task367`, and `task363` were also inspected. Their
+patterns looked plausible but not sufficiently clear for a conservative MATCH
+within this quick pass, so no candidates were generated for them.
+
+### Implementation
+
+- Added `build_dynamic_bottom_marker_vertical_stripes_model()` in
+  `src/onnx_builders.py`.
+  - Infers active height/width from one-hot padding.
+  - Infers the unique nonzero marker column via `Conv`, `ReduceSum`, and
+    `ArgMax`.
+  - Infers the marker color via masked `ReduceMax`.
+  - Builds static-shape dynamic column masks using `Offsets`, scalar deltas,
+    `Add`, `Equal`, and `Or`.
+  - Outputs `input * keep + marker_color * vertical_mask + color5 * connector_mask`.
+- Added `BottomMarkerVerticalStripeRule` in `src/pattern_rules.py`.
+  - Returns MATCH only when every train case exactly matches the bottom-marker
+    vertical stripe specification.
+  - Added to `first_version_rules()`.
+- Added focused tests in `tests/test_pattern_rules.py`.
+  - Positive build/validate cases with different active sizes, marker columns,
+    and marker colors.
+  - Rejection checks for non-bottom and multiple markers.
+
+### Replacement Result
+
+`src.search_symbolic_replacements` was run for `task200` only with `--replace`.
+The replacement gate selected the new candidate because it passed validation and
+was strictly lower cost:
+
+- rule: `BottomMarkerVerticalStripeRule`
+- new estimated cost: 992
+- new ONNX file size: 14264 bytes
+- cost delta: 989058
+- replacement path: `outputs/onnx/task200.onnx`
+- candidate path: `outputs/candidates/replacements/task200_BottomMarkerVerticalStripeRule.onnx`
+
+### Model Bank Result
+
+After rebuilding the current model bank and submission:
+
+- selected tasks: 400 / 400
+- missing or invalid tasks: 0
+- estimated cost total: 8151611
+- ONNX file size total: 12908426 bytes
+- `outputs/submission.zip` inspection passed with 400 ONNX models
+
+### Commands
+
+```powershell
+python -m pytest -q tests\test_pattern_rules.py
+python -m src.search_symbolic_replacements --data-dir task --current-model-dir outputs\onnx --current-report outputs\reports\current_model_bank_report.csv --candidate-dir outputs\candidates\replacements --report outputs\reports\replacement_search_report_task200.csv --task-ids task200 --replace --timeout-seconds 120
+python -m src.build_current_model_submission --data-dir task --model-dir outputs\onnx --validated-dir outputs\current_model_bank_verified_onnx --report outputs\reports\current_model_bank_report.csv --zip outputs\submission.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m pytest -q tests\test_pattern_rules.py tests\test_high_cost_replacement_search.py tests\test_build_current_model_submission.py
+python -m compileall src tests
+python -m pytest -q
+git diff --check
+```
+
+### Validation
+
+- `tests/test_pattern_rules.py`: 56 passed.
+- Focused combined tests: 61 passed.
+- Full pytest: 70 passed, 2 skipped.
+- `python -m compileall src tests`: passed.
+- `python -m src.inspect_submission --zip outputs\submission.zip`: passed,
+  400 ONNX models.
+- `git diff --check`: no whitespace errors; only LF-to-CRLF warnings.
+
+### Risk
+
+This is strict local train validation and local estimated cost. It is not a
+guaranteed official leaderboard score.
+## 2026-06-03 - task396 DynamicLargestFrameRecolorCropRule replacement
+
+### Goal
+
+Continue the requested optimization round using the task priorities in
+`任务文本`. After inspecting the first-priority same-shape mask targets
+(`task133`, `task076`, `task157`) without finding a safe quick MATCH, switch to
+the second-priority dynamic crop group and target `task396`.
+
+### Analysis
+
+`task396` has two nonzero colors in every inspected example. The larger-count
+color forms several rectangular hollow frames; the smaller-count color is a
+marker/noise color scattered inside and outside the frames. The output is the
+largest frame crop, with every nonzero cell inside that crop recolored to the
+marker color while real zero cells remain color 0.
+
+Additional task data was used only for confidence checking, not as ONNX runtime
+state:
+
+- train cases: 3
+- test cases with labels: 1
+- arc-gen cases: 262
+- observed output dimensions across all available cases: 4..8 by 4..8
+- observed nonzero color sets: exactly two nonzero colors per case
+
+### Implementation
+
+- Added `build_dynamic_largest_frame_recolor_crop_model()` in
+  `src/onnx_builders.py`.
+  - Counts input color channels and dynamically selects the most frequent
+    nonzero source/frame color and least frequent nonzero marker color.
+  - Builds a source-color mask.
+  - Enumerates static frame kernels for all 4..8 height/width combinations.
+  - Selects the largest valid frame by ONNX graph logic.
+  - Uses `Gather` to crop the selected bbox.
+  - Outputs marker color for nonzero crop cells, color 0 for real zero crop
+    cells, and all-zero padding outside the selected crop.
+- Added `DynamicLargestFrameRecolorCropRule` in `src/pattern_rules.py`.
+  - MATCH only when every train case has exactly two nonzero colors, a unique
+    larger-count source color, a unique smaller-count marker color, a unique
+    largest source-color frame in 4..8 dimensions, and exact output equality.
+  - Added to `first_version_rules()`.
+- Added a focused synthetic build/validate test in
+  `tests/test_pattern_rules.py`.
+
+### Replacement Result
+
+`src.search_symbolic_replacements` was run for `task396` with `--replace`.
+The new candidate passed validation and was selected:
+
+- rule: `DynamicLargestFrameRecolorCropRule`
+- old estimated cost: 115080
+- new estimated cost: 6009
+- cost delta: 109071
+- old ONNX file size: 148123 bytes
+- new ONNX file size: 50393 bytes
+- replacement path: `outputs/onnx/task396.onnx`
+- candidate path:
+  `outputs/candidates/replacements/task396_DynamicLargestFrameRecolorCropRule.onnx`
+
+Extra confidence validation on all labelled `task396` splits:
+
+- train: 3 / 3 passed
+- test: 1 / 1 passed
+- arc-gen: 262 / 262 passed
+
+### Model Bank Result
+
+After rebuilding the current model bank and submission:
+
+- selected tasks: 400 / 400
+- missing or invalid tasks: 0
+- estimated cost total: 8042540
+- ONNX file size total: 12810696 bytes
+- `outputs/submission.zip` inspection passed with 400 ONNX models
+
+### Commands
+
+```powershell
+python -m pytest -q tests\test_pattern_rules.py -k largest_frame_recolor
+python -m src.search_symbolic_replacements --data-dir task --current-model-dir outputs\onnx --current-report outputs\reports\current_model_bank_report.csv --candidate-dir outputs\candidates\replacements --report outputs\reports\replacement_search_report_task396.csv --task-ids task396 --replace --timeout-seconds 120
+python -c "import json; from src.validate_onnx_model import validate_cases; d=json.load(open('task/task396.json', encoding='utf-8')); model='outputs/onnx/task396.onnx'; for split in ['train','test','arc-gen']: r=validate_cases(model, d.get(split, [])); print(split, r['passed'], r['num_cases'], r['num_failed_cases'])"
+python -m src.build_current_model_submission --data-dir task --model-dir outputs\onnx --validated-dir outputs\current_model_bank_verified_onnx --report outputs\reports\current_model_bank_report.csv --zip outputs\submission.zip --timeout-seconds 120
+python -m src.inspect_submission --zip outputs\submission.zip
+python -m pytest -q tests\test_pattern_rules.py
+python -m pytest -q tests\test_high_cost_replacement_search.py
+python -m compileall src tests
+python -m pytest -q
+git diff --check
+```
+
+### Validation
+
+- Focused largest-frame test: 1 passed.
+- `tests/test_pattern_rules.py`: 57 passed.
+- `tests/test_high_cost_replacement_search.py`: 2 passed.
+- Full pytest: 71 passed, 2 skipped.
+- `python -m compileall src tests`: passed.
+- `python -m src.inspect_submission --zip outputs\submission.zip`: passed,
+  400 ONNX models.
+- `git diff --check`: no whitespace errors; only LF-to-CRLF warnings.
+
+### Risk
+
+This is strict local validation and local estimated cost. The extra `test` and
+`arc-gen` validation increases confidence for this rule, but it is still not a
+guaranteed official leaderboard score.

@@ -1,0 +1,173 @@
+第一优先级：做 same-shape mask algebra 系列
+
+先攻：
+
+task133, task076, task157
+
+这三个都是百万级 cost，而且外部上下文里已经把方向标成 same-shape mask algebra、local rule、object/pattern completion、mask/recolor。
+
+建议新增一个 probe：
+
+SameShapeMaskAlgebraProbe
+
+它不要一开始就生成 ONNX，先只分析每个 train case 的：
+
+delta_mask = output != input
+added_mask[color] = output == color and input != color
+removed_mask[color] = input == color and output != input
+preserve_mask = output == input
+
+然后枚举这些候选解释：
+
+1. 某颜色的 4-neighbor / 8-neighbor 邻域扩张
+2. 某颜色的端点连线、延长线、射线补全
+3. bbox 内部填充 / bbox 边框补全
+4. 两种颜色 mask 的 AND / OR / XOR / NOT 组合
+5. 某颜色周围 neighbor count == k / >= k
+6. active grid 边界、中心线、对角线、反对角线条件
+7. input object mask 经水平/垂直/对角 remap 后再 recolor
+
+只有当所有 train case 都命中同一个公式时，才升级为正式规则：
+
+SameShapeMaskAlgebraRule
+
+ONNX builder 可以主要用：
+
+Conv, Equal, Greater, Less, Add, Sub, Mul, And, Or, Not, Where, Cast
+
+这些都是你当前文档里推荐的允许算子。
+
+预期收益：
+
+task133: 1.4M -> 500~5,000
+task076: 1.15M -> 1,000~10,000
+task157: 1.02M -> 500~5,000
+
+这三个任务只要成功两个，总 cost 就可能直接下降 200 万以上。
+
+3. 第二优先级：做 dynamic crop / object extraction 系列
+
+先攻：
+
+task209, task233, task366, task396, task319
+
+这些任务的方向都指向 shrink、crop、object extraction、frame extraction。
+
+你现在已有：
+
+DynamicNonBackgroundBBoxCropRule
+DynamicBBoxCropRule
+build_dynamic_color_bbox_crop_model
+build_dynamic_frame_interior_crop_model
+ComposedRuleSearch safe extractor
+
+但目前仍然避开了一些 component-selection 场景，因为不能安全编译。进度文档里明确说，component-not-touching-border 等候选仍是 probe，不构建；task036/task174 这类需要真正 component selection，不能用宽松 probe 直接进 submission。
+
+下一步应该不是写一个万能 connected component ONNX，而是先做可 ONNX 化的弱 component 选择器：
+
+DynamicObjectSelectorProbe
+
+优先只支持这些安全 selector：
+
+1. bbox_of_all_non_background
+2. bbox_of_color(c)
+3. bbox_of_unique_color
+4. bbox_of_rare_color
+5. bbox_of_largest_color_area
+6. bbox_of_smallest_color_area
+7. bbox_touches_border / bbox_not_touches_border
+8. bbox_contains_marker_color
+9. bbox_shape_matches_output_shape
+10. frame_color bbox -> interior crop
+
+暂时不要做真正任意 connected component，因为没有 NonZero / Loop / Scan / Unique，官方也禁止这些算子。题目约束要求静态 shape，并明确禁用这些 op。
+
+预期收益：
+
+task209: 1.17M -> 1,000~8,000
+task233: 668K -> 1,000~8,000
+task366: 266K -> 2,000~20,000
+task396: 115K -> 500~5,000
+task319: 78K -> 1,000~10,000
+
+这组里我建议优先看 task396 和 task319，虽然 cost 不是最高，但方向更窄，可能更容易先拿到一个可验证替换。
+
+4. 第三优先级：扩展 line / fill 规则
+
+目标：
+
+task025, task367, task363
+
+这三个之前已经被标为“看起来有方向，但规则不够安全”。
+
+建议分别做三个 probe：
+
+A. DirectionalLineCompletionProbe
+
+针对 task025 / task363：
+
+1. 找每种颜色的端点
+2. 判断输出是否是水平、垂直、对角线延长
+3. 判断是否连接两个同色点 / 异色点
+4. 判断是否在 object bbox 内补全规律线
+5. 判断线段颜色是否来自输入端点、固定颜色、或背景替换
+
+builder 可用静态 30x30 坐标 mask + Where，或者用 row/col/diag 条件生成动态 mask。不要一开始支持所有方向，先支持：
+
+horizontal
+vertical
+main diagonal
+anti diagonal
+B. HoleFillRuleV2
+
+针对 task367：
+
+你已有 HoleFillRule，但应该扩展成：
+
+1. 填充所有不接触 active 边界的 background component
+2. 填充颜色不一定固定，可以来自边框颜色 / enclosing color / rare color
+3. 支持只填最大 hole / 最小 hole / 所有 holes
+4. 支持 hole 内部 recolor 而不是简单填 1 个固定颜色
+
+你之前的 HoleFillRule 已经用固定次数 4-neighbor Conv 膨胀实现 flood fill，不用 Loop/Scan/NonZero/Unique，这个方向和比赛约束兼容。
+
+C. ObjectMoveOrCopyProbe
+
+针对 task025：
+
+检查输出是否等于：
+
+input + translated object
+input with object moved
+input with one object copied to another marker
+object aligned to line / frame / corner / same row/col
+
+如果 dy/dx 能从 train 中由 marker、bbox、端点决定，就能生成正式 builder；如果 dy/dx 只是每个样例硬编码，不要进 submission。
+
+5. 第四优先级：低风险 graph-level cost 优化
+
+这些不是主收益，但可以并行做。
+
+5.1 继续压 initializer dtype
+
+你已经做过 bool mask + Cast，后续可以检查：
+
+1. int64 index initializer 能否改成 int32
+2. 大型 0/1 float mask 是否还能转 bool
+3. 纯常量坐标表是否可由 Range-like 静态 initializer 拆成 row/col 小表
+4. 重复常量是否能共用 initializer
+5. 未使用 initializer 是否能 prune
+
+外部上下文也明确把“大 sparse initializer、float 0/1 mask 转 bool + Cast、int64 index 转 int32”列为开放优化问题。
+
+但这类优化应放在规则替换之后，因为收益通常远小于把一个百万 cost baseline 替换为几百 cost 的语义图。
+
+5.2 不要优先处理 task153
+
+task153 的 file size 很大，862,351 bytes，但 estimated cost 只有 26,811。如果当前目标是 leaderboard score，它不是第一优先级。它适合作为：
+
+1. zip / 单文件大小风险处理
+2. 官方 processing 问题处理
+3. 有明显 compact rule 时顺手替换
+
+而不是当前主攻方向。

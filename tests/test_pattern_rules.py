@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from src.pattern_rules import (
+    BottomMarkerVerticalStripeRule,
+    DiagonalBottomFillRule,
     DynamicBBoxCropRule,
     DynamicBBoxExtremeColorSwapRule,
     DynamicActiveMirrorRule,
+    DynamicLargestFrameRecolorCropRule,
+    DynamicLineProjectionRule,
     DynamicNonBackgroundBBoxCropRule,
     DynamicQuadrantPanelSelectRule,
+    DynamicRectangularCavityFillRule,
     FrameInteriorRule,
     ColorMapRule,
     ComposedRuleSearch,
@@ -31,6 +36,7 @@ from src.pattern_rules import (
     SubstructureExtractRule,
     SymmetryCompletionRule,
     TileFromBBoxRepeatRule,
+    TwoMarkerHorizontalBandRule,
 )
 from src.candidate_discovery_report import build_candidate_discovery_report
 from src.validate_onnx_model import validate_task
@@ -162,6 +168,307 @@ def test_dynamic_active_mirror_rule_builds_valid_variable_shapes(tmp_path) -> No
 
     assert result.matched is True
     assert result.metadata["mode"] == "horizontal"
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
+
+
+def test_diagonal_bottom_fill_rule_builds_valid_dynamic_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [[5, 0, 0], [5, 0, 0], [5, 0, 0]],
+                "output": [[5, 0, 2], [5, 2, 0], [5, 4, 4]],
+            },
+            {
+                "input": [
+                    [8, 0, 0, 0, 0, 0, 0],
+                    [8, 0, 0, 0, 0, 0, 0],
+                    [8, 0, 0, 0, 0, 0, 0],
+                    [8, 0, 0, 0, 0, 0, 0],
+                    [8, 0, 0, 0, 0, 0, 0],
+                    [8, 0, 0, 0, 0, 0, 0],
+                    [8, 0, 0, 0, 0, 0, 0],
+                ],
+                "output": [
+                    [8, 0, 0, 0, 0, 0, 2],
+                    [8, 0, 0, 0, 0, 2, 0],
+                    [8, 0, 0, 0, 2, 0, 0],
+                    [8, 0, 0, 2, 0, 0, 0],
+                    [8, 0, 2, 0, 0, 0, 0],
+                    [8, 2, 0, 0, 0, 0, 0],
+                    [8, 4, 4, 4, 4, 4, 4],
+                ],
+            },
+            {
+                "input": [
+                    [2, 0, 0, 0],
+                    [2, 0, 0, 0],
+                    [2, 0, 0, 0],
+                    [2, 0, 0, 0],
+                ],
+                "output": [
+                    [2, 0, 0, 2],
+                    [2, 0, 2, 0],
+                    [2, 2, 0, 0],
+                    [2, 4, 4, 4],
+                ],
+            },
+        ]
+    }
+
+    rule = DiagonalBottomFillRule()
+    result = rule.match(task)
+
+    assert result.matched is True
+    assert result.confidence == "MATCH"
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
+
+
+def test_diagonal_bottom_fill_rule_rejects_unsupported_shapes_and_inputs() -> None:
+    rule = DiagonalBottomFillRule()
+    non_square = {
+        "train": [
+            {
+                "input": [[5, 0, 0, 0], [5, 0, 0, 0], [5, 0, 0, 0]],
+                "output": [[5, 0, 0, 2], [5, 0, 2, 0], [5, 4, 4, 4]],
+            }
+        ]
+    }
+    extra_input_cell = {
+        "train": [
+            {
+                "input": [[5, 0, 0], [5, 9, 0], [5, 0, 0]],
+                "output": [[5, 0, 2], [5, 2, 0], [5, 4, 4]],
+            }
+        ]
+    }
+
+    assert rule.match(non_square).matched is False
+    assert rule.match(extra_input_cell).matched is False
+
+
+def test_bottom_marker_vertical_stripe_rule_builds_valid_dynamic_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 2, 0, 0, 0, 0],
+                ],
+                "output": [
+                    [0, 2, 5, 2, 0, 2],
+                    [0, 2, 0, 2, 0, 2],
+                    [0, 2, 0, 2, 0, 2],
+                    [0, 2, 0, 2, 5, 2],
+                ],
+            },
+            {
+                "input": [
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 3, 0, 0],
+                ],
+                "output": [
+                    [0, 0, 0, 0, 3, 5, 3],
+                    [0, 0, 0, 0, 3, 0, 3],
+                    [0, 0, 0, 0, 3, 0, 3],
+                ],
+            },
+            {
+                "input": [
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 4, 0, 0, 0],
+                ],
+                "output": [
+                    [0, 0, 0, 0, 4, 5, 4, 0],
+                    [0, 0, 0, 0, 4, 0, 4, 0],
+                    [0, 0, 0, 0, 4, 0, 4, 5],
+                ],
+            },
+        ]
+    }
+
+    rule = BottomMarkerVerticalStripeRule()
+    result = rule.match(task)
+
+    assert result.matched is True
+    assert result.confidence == "MATCH"
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
+
+
+def test_bottom_marker_vertical_stripe_rule_rejects_non_bottom_or_multiple_markers() -> None:
+    rule = BottomMarkerVerticalStripeRule()
+    non_bottom_marker = {
+        "train": [
+            {
+                "input": [[0, 0, 0], [0, 2, 0], [0, 0, 0]],
+                "output": [[0, 0, 0], [0, 2, 0], [0, 0, 0]],
+            }
+        ]
+    }
+    multiple_markers = {
+        "train": [
+            {
+                "input": [[0, 0, 0], [0, 0, 0], [2, 0, 3]],
+                "output": [[2, 5, 2], [2, 0, 2], [2, 0, 2]],
+            }
+        ]
+    }
+
+    assert rule.match(non_bottom_marker).matched is False
+    assert rule.match(multiple_markers).matched is False
+
+
+def test_two_marker_horizontal_band_rule_builds_valid_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 2, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 4, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                ],
+                "output": [
+                    [2, 2, 2, 2, 2, 2],
+                    [2, 2, 2, 2, 2, 2],
+                    [2, 0, 0, 0, 0, 2],
+                    [4, 4, 4, 4, 4, 4],
+                    [4, 0, 0, 0, 0, 4],
+                    [4, 4, 4, 4, 4, 4],
+                ],
+            },
+            {
+                "input": [
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 3, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 5, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                ],
+                "output": [
+                    [3, 3, 3, 3, 3, 3],
+                    [3, 3, 3, 3, 3, 3],
+                    [3, 0, 0, 0, 0, 3],
+                    [5, 5, 5, 5, 5, 5],
+                    [5, 0, 0, 0, 0, 5],
+                    [5, 5, 5, 5, 5, 5],
+                ],
+            },
+        ]
+    }
+
+    rule = TwoMarkerHorizontalBandRule()
+    result = rule.match(task)
+
+    assert result.matched is True
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
+
+
+def test_dynamic_line_projection_rule_builds_valid_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [0, 0, 0, 3, 0, 0],
+                    [0, 3, 0, 3, 0, 0],
+                    [0, 0, 0, 3, 0, 3],
+                    [0, 0, 0, 3, 0, 0],
+                    [0, 0, 0, 3, 0, 0],
+                ],
+                "output": [
+                    [0, 0, 0, 3, 0, 0],
+                    [0, 0, 3, 3, 0, 0],
+                    [0, 0, 0, 3, 3, 0],
+                    [0, 0, 0, 3, 0, 0],
+                    [0, 0, 0, 3, 0, 0],
+                ],
+            },
+            {
+                "input": [
+                    [0, 0, 2, 0, 0],
+                    [0, 0, 0, 0, 0],
+                    [2, 2, 2, 2, 2],
+                    [0, 0, 0, 4, 0],
+                    [0, 2, 0, 0, 0],
+                ],
+                "output": [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 2, 0, 0],
+                    [2, 2, 2, 2, 2],
+                    [0, 2, 0, 0, 0],
+                    [0, 0, 0, 0, 0],
+                ],
+            },
+        ]
+    }
+
+    rule = DynamicLineProjectionRule()
+    result = rule.match(task)
+
+    assert result.matched is True
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
+
+
+def test_dynamic_rectangular_cavity_fill_rule_builds_valid_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [0, 5, 5, 5, 0],
+                    [0, 5, 0, 5, 0],
+                    [0, 5, 0, 5, 0],
+                    [0, 5, 0, 5, 0],
+                    [0, 5, 5, 5, 0],
+                ],
+                "output": [
+                    [0, 5, 5, 5, 0],
+                    [0, 5, 4, 5, 0],
+                    [0, 5, 4, 5, 0],
+                    [0, 5, 4, 5, 0],
+                    [0, 5, 5, 5, 0],
+                ],
+            },
+            {
+                "input": [
+                    [5, 5, 0],
+                    [0, 5, 0],
+                    [0, 5, 0],
+                    [5, 5, 0],
+                ],
+                "output": [
+                    [5, 5, 0],
+                    [4, 5, 0],
+                    [4, 5, 0],
+                    [5, 5, 0],
+                ],
+            },
+            {
+                "input": [
+                    [5, 5, 5],
+                    [0, 5, 0],
+                    [0, 5, 0],
+                    [5, 5, 5],
+                ],
+                "output": [
+                    [5, 5, 5],
+                    [0, 5, 0],
+                    [0, 5, 0],
+                    [5, 5, 5],
+                ],
+            },
+        ]
+    }
+
+    rule = DynamicRectangularCavityFillRule()
+    result = rule.match(task)
+
+    assert result.matched is True
     _assert_rule_builds_and_validates(rule, task, tmp_path)
 
 
@@ -606,6 +913,55 @@ def test_dynamic_bbox_extreme_color_swap_rule_builds_valid_model(tmp_path) -> No
 
     assert result.matched is True
     assert result.metadata["background_color"] == 0
+    _assert_rule_builds_and_validates(rule, task, tmp_path)
+
+
+def test_dynamic_largest_frame_recolor_crop_rule_builds_valid_model(tmp_path) -> None:
+    task = {
+        "train": [
+            {
+                "input": [
+                    [0, 0, 4, 0, 0, 0, 0],
+                    [2, 2, 2, 2, 0, 2, 2],
+                    [2, 0, 4, 2, 0, 2, 2],
+                    [2, 0, 0, 2, 0, 0, 0],
+                    [2, 2, 2, 2, 0, 4, 0],
+                    [0, 0, 0, 0, 0, 0, 0],
+                ],
+                "output": [
+                    [4, 4, 4, 4],
+                    [4, 0, 4, 4],
+                    [4, 0, 0, 4],
+                    [4, 4, 4, 4],
+                ],
+            },
+            {
+                "input": [
+                    [0, 0, 0, 0, 0, 0, 0, 3],
+                    [0, 7, 7, 7, 7, 7, 0, 0],
+                    [0, 7, 0, 0, 3, 7, 0, 7],
+                    [0, 7, 0, 0, 0, 7, 0, 7],
+                    [0, 7, 0, 3, 0, 7, 0, 7],
+                    [0, 7, 7, 7, 7, 7, 0, 0],
+                    [0, 0, 0, 3, 0, 0, 0, 0],
+                ],
+                "output": [
+                    [3, 3, 3, 3, 3],
+                    [3, 0, 0, 3, 3],
+                    [3, 0, 0, 0, 3],
+                    [3, 0, 3, 0, 3],
+                    [3, 3, 3, 3, 3],
+                ],
+            },
+        ]
+    }
+
+    rule = DynamicLargestFrameRecolorCropRule()
+    result = rule.match(task)
+
+    assert result.matched is True
+    assert result.metadata["min_frame_size"] == 4
+    assert result.metadata["max_frame_size"] == 8
     _assert_rule_builds_and_validates(rule, task, tmp_path)
 
 

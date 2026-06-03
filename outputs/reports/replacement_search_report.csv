@@ -1,0 +1,33 @@
+task_id,current_cost,current_file_size,rule_name,match_status,match_confidence,match_reason,builder_available,candidate_model_path,validation_passed,candidate_cost,candidate_file_size,failure_reason,replace_recommended,selected_replacement
+task084,1390970,1127799,IdentityRule,REJECT,REJECT,input_output_not_identical,False,,,,,,False,False
+task084,1390970,1127799,ColorMapRule,REJECT,REJECT,"inconsistent mapping for color 0: 0 vs 2 at case 0, row 0, col 14",False,,,,,,False,False
+task084,1390970,1127799,OneStepTranslationRule,REJECT,REJECT,translation_requires_one_shared_grid_size,False,,,,,,False,False
+task084,1390970,1127799,MirrorRule,REJECT,REJECT,mirror_requires_one_shared_grid_size,False,,,,,,False,False
+task084,1390970,1127799,DynamicActiveMirrorRule,REJECT,REJECT,no active mirror mode matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,DiagonalBottomFillRule,MATCH,MATCH,matched solid left column with anti-diagonal 2 and bottom-row 4,True,outputs\candidates\replacements\task084_DiagonalBottomFillRule.onnx,True,722,4301,,True,True
+task084,1390970,1127799,RotateRule,REJECT,REJECT,rotate_requires_one_shared_grid_size,False,,,,,,False,False
+task084,1390970,1127799,CropRule,REJECT,REJECT,crop_requires_one_shared_output_size,False,,,,,,False,False
+task084,1390970,1127799,ScaleRepeatRule,REJECT,REJECT,no fixed scale repeat matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,StridedSubsampleRule,REJECT,REJECT,strided_subsample_requires_shared_shapes,False,,,,,,False,False
+task084,1390970,1127799,TileRepeatRule,REJECT,REJECT,tile_repeat_requires_shared_shapes,False,,,,,,False,False
+task084,1390970,1127799,MirrorConcatRule,REJECT,REJECT,mirror_concat_requires_shared_shapes,False,,,,,,False,False
+task084,1390970,1127799,SelfKronMaskRule,REJECT,REJECT,self_kron_requires_one_shared_input_shape,False,,,,,,False,False
+task084,1390970,1127799,GeneralizedPanelRule,REJECT,REJECT,generalized_panel_requires_shared_output_shape,False,,,,,,False,False
+task084,1390970,1127799,PanelSeparatorBinaryOpRule,REJECT,REJECT,no complete equal-size panel separator found,False,,,,,,False,False
+task084,1390970,1127799,PanelSelectByColorRule,REJECT,REJECT,panel_select_requires_shared_output_shape,False,,,,,,False,False
+task084,1390970,1127799,PeriodicExtensionColorMapRule,REJECT,REJECT,periodic_extension_requires_shared_shapes,False,,,,,,False,False
+task084,1390970,1127799,HoleFillRule,REJECT,REJECT,no hole fill matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,LocalNeighborhoodFillRule,REJECT,REJECT,no local neighborhood fill matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,SubstructureExtractRule,REJECT,REJECT,substructure_extract_requires_shared_output_size,False,,,,,,False,False
+task084,1390970,1127799,TileFromBBoxRepeatRule,REJECT,REJECT,tile_from_bbox_requires_shared_output_size,False,,,,,,False,False
+task084,1390970,1127799,MultiStepTranslationRule,REJECT,REJECT,no shape-polymorphic multi-step translation matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,SymmetryCompletionRule,REJECT,REJECT,symmetry_completion_requires_shared_shape,False,,,,,,False,False
+task084,1390970,1127799,RectangleAndLineRule,REJECT,REJECT,no rectangle or line transform matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,ObjectSelectionRule,REJECT,REJECT,no object selection matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,LocalNeighborhoodRewriteRule,REJECT,REJECT,no local neighborhood rewrite matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,DynamicQuadrantPanelSelectRule,REJECT,REJECT,input is not an odd square 2x2 center-cross panel grid,False,,,,,,False,False
+task084,1390970,1127799,DynamicBBoxCropRule,REJECT,REJECT,no dynamic bbox crop matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,DynamicNonBackgroundBBoxCropRule,REJECT,REJECT,no dynamic non-background bbox crop matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,FrameInteriorRule,REJECT,REJECT,no frame interior transform matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,ComposedRuleSearch,REJECT,REJECT,no two-step composition matches all train cases,False,,,,,,False,False
+task084,1390970,1127799,DynamicBBoxExtremeColorSwapRule,REJECT,REJECT,no dynamic bbox extreme color swap matches all train cases,False,,,,,,False,False

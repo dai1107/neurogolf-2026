@@ -10,6 +10,8 @@ from .onnx_builders import (
     build_active_rectangle_model,
     build_auto_periodic_extension_color_map_model,
     build_dynamic_active_mirror_model,
+    build_dynamic_bottom_marker_vertical_stripes_model,
+    build_dynamic_left_column_diagonal_bottom_fill_model,
     build_generalized_panel_op_model,
     build_hole_fill_model,
     build_panel_binary_op_model,
@@ -17,8 +19,11 @@ from .onnx_builders import (
     build_dynamic_bbox_extreme_color_swap_model,
     build_dynamic_color_bbox_crop_model,
     build_dynamic_frame_interior_crop_model,
+    build_dynamic_largest_frame_recolor_crop_model,
+    build_dynamic_line_projection_model,
     build_dynamic_non_background_bbox_crop_model,
     build_dynamic_quadrant_panel_select_model,
+    build_dynamic_rectangular_cavity_fill_model,
     build_dynamic_fill_translation_model,
     build_dynamic_single_color_translation_model,
     build_identity_model,
@@ -35,6 +40,7 @@ from .onnx_builders import (
     build_spatial_remap_model,
     build_static_overlay_model,
     build_symmetry_completion_model,
+    build_two_marker_horizontal_bands_model,
     build_zero_fill_translation_remap_model,
 )
 
@@ -346,6 +352,544 @@ class DynamicActiveMirrorRule(BaseRule):
         metadata: dict[str, Any],
     ) -> CandidateModel:
         build_dynamic_active_mirror_model(metadata["mode"], output_path)
+        return CandidateModel(task_id, self.name, output_path, metadata)
+
+
+def _left_column_diagonal_bottom_fill(grid: list[list[int]]) -> list[list[int]]:
+    height, width = grid_shape(grid)
+    result = [list(row) for row in grid]
+    for row in range(height - 1):
+        result[row][width - 1 - row] = 2
+    for col in range(1, width):
+        result[height - 1][col] = 4
+    return result
+
+
+class DiagonalBottomFillRule(BaseRule):
+    """Preserve a solid nonzero left column, draw anti-diagonal 2 and bottom row 4."""
+
+    name = "DiagonalBottomFillRule"
+    priority = 29
+
+    def match(self, task: dict) -> RuleResult:
+        cases = _train_cases(task)
+        for case_index, case in enumerate(cases):
+            input_grid = case["input"]
+            output_grid = case["output"]
+            if grid_shape(input_grid) != grid_shape(output_grid):
+                return RuleResult(self.name, False, "REJECT", "diagonal_bottom_fill_requires_same_size", {})
+            height, width = grid_shape(input_grid)
+            if height != width or height < 3:
+                return RuleResult(self.name, False, "REJECT", "diagonal_bottom_fill_requires_square_size_at_least_3", {})
+
+            left_color = input_grid[0][0]
+            if left_color == 0:
+                return RuleResult(self.name, False, "REJECT", "left_column_color_must_be_nonzero", {})
+            if any(row[0] != left_color for row in input_grid):
+                return RuleResult(self.name, False, "REJECT", "left_column_is_not_constant", {})
+            if any(input_grid[row][col] != 0 for row in range(height) for col in range(1, width)):
+                return RuleResult(self.name, False, "REJECT", "input_non_left_cells_must_be_zero", {})
+
+            expected = _left_column_diagonal_bottom_fill(input_grid)
+            if expected != output_grid:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    f"case {case_index} does not match anti-diagonal 2 plus bottom-row 4",
+                    {},
+                )
+
+        return RuleResult(
+            self.name,
+            True,
+            "MATCH",
+            "matched solid left column with anti-diagonal 2 and bottom-row 4",
+            {"mode": "left_column_diagonal_bottom_fill"},
+        )
+
+    def build(
+        self,
+        task_id: str,
+        task: dict,
+        output_path: str,
+        metadata: dict[str, Any],
+    ) -> CandidateModel:
+        build_dynamic_left_column_diagonal_bottom_fill_model(output_path)
+        return CandidateModel(task_id, self.name, output_path, metadata)
+
+
+def _bottom_marker_vertical_stripes(grid: list[list[int]], fill_color: int = 5) -> list[list[int]] | None:
+    height, width = grid_shape(grid)
+    markers = [
+        (row, col, color)
+        for row, values in enumerate(grid)
+        for col, color in enumerate(values)
+        if color != 0
+    ]
+    if len(markers) != 1:
+        return None
+    marker_row, marker_col, marker_color = markers[0]
+    if marker_row != height - 1 or marker_color == fill_color:
+        return None
+
+    result = [list(row) for row in grid]
+    for col in range(marker_col, width, 2):
+        for row in range(height):
+            result[row][col] = marker_color
+    for col in range(marker_col + 1, width, 4):
+        result[0][col] = fill_color
+    for col in range(marker_col + 3, width, 4):
+        result[height - 1][col] = fill_color
+    return result
+
+
+class BottomMarkerVerticalStripeRule(BaseRule):
+    """Draw marker-color vertical stripes and color-5 top/bottom connectors."""
+
+    name = "BottomMarkerVerticalStripeRule"
+    priority = 30
+
+    def match(self, task: dict) -> RuleResult:
+        cases = _train_cases(task)
+        for case_index, case in enumerate(cases):
+            input_grid = case["input"]
+            output_grid = case["output"]
+            if grid_shape(input_grid) != grid_shape(output_grid):
+                return RuleResult(self.name, False, "REJECT", "bottom_marker_vertical_stripes_requires_same_size", {})
+            expected = _bottom_marker_vertical_stripes(input_grid)
+            if expected is None:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    "input must contain exactly one nonzero marker on the bottom row",
+                    {},
+                )
+            if expected != output_grid:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    f"case {case_index} does not match bottom-marker vertical stripe pattern",
+                    {},
+                )
+        return RuleResult(
+            self.name,
+            True,
+            "MATCH",
+            "matched bottom marker vertical stripes with color-5 connectors",
+            {"mode": "bottom_marker_vertical_stripes", "fill_color": 5},
+        )
+
+    def build(
+        self,
+        task_id: str,
+        task: dict,
+        output_path: str,
+        metadata: dict[str, Any],
+    ) -> CandidateModel:
+        build_dynamic_bottom_marker_vertical_stripes_model(output_path, fill_color=int(metadata.get("fill_color", 5)))
+        return CandidateModel(task_id, self.name, output_path, metadata)
+
+
+def _two_marker_horizontal_bands(grid: list[list[int]]) -> list[list[int]] | None:
+    height, width = grid_shape(grid)
+    markers = [
+        (row, col, color)
+        for row, values in enumerate(grid)
+        for col, color in enumerate(values)
+        if color != 0
+    ]
+    if len(markers) != 2:
+        return None
+    markers = sorted(markers)
+    top_row, _top_col, top_color = markers[0]
+    bottom_row, _bottom_col, bottom_color = markers[1]
+    if top_color == bottom_color:
+        return None
+    if not (0 < top_row < bottom_row < height - 1):
+        return None
+
+    split_row = (top_row + bottom_row) // 2
+    result = [[0 for _ in range(width)] for _ in range(height)]
+    for row in range(split_row + 1):
+        result[row][0] = top_color
+        result[row][width - 1] = top_color
+    for col in range(width):
+        result[0][col] = top_color
+        result[top_row][col] = top_color
+
+    for row in range(split_row + 1, height):
+        result[row][0] = bottom_color
+        result[row][width - 1] = bottom_color
+    for col in range(width):
+        result[bottom_row][col] = bottom_color
+        result[height - 1][col] = bottom_color
+    return result
+
+
+class TwoMarkerHorizontalBandRule(BaseRule):
+    """Draw two horizontal band frames using the colors of two single markers."""
+
+    name = "TwoMarkerHorizontalBandRule"
+    priority = 32
+
+    def match(self, task: dict) -> RuleResult:
+        cases = _train_cases(task)
+        shapes = _shape_set(cases, "input")
+        if not all(_input_output_shapes_equal(case) for case in cases):
+            return RuleResult(self.name, False, "REJECT", "two_marker_bands_requires_same_size", {})
+        if len(shapes) != 1:
+            return RuleResult(self.name, False, "REJECT", "two_marker_bands_requires_shared_shape", {})
+        active_height, active_width = next(iter(shapes))
+
+        marker_rows: tuple[int, int] | None = None
+        for case_index, case in enumerate(cases):
+            markers = [
+                (row, col, color)
+                for row, values in enumerate(case["input"])
+                for col, color in enumerate(values)
+                if color != 0
+            ]
+            if len(markers) != 2:
+                return RuleResult(self.name, False, "REJECT", "input must contain exactly two nonzero markers", {})
+            markers = sorted(markers)
+            rows = (markers[0][0], markers[1][0])
+            if marker_rows is None:
+                marker_rows = rows
+            elif marker_rows != rows:
+                return RuleResult(self.name, False, "REJECT", "two_marker_bands_requires_shared_marker_rows", {})
+            expected = _two_marker_horizontal_bands(case["input"])
+            if expected is None:
+                return RuleResult(self.name, False, "REJECT", "two_marker_bands_marker_structure_invalid", {})
+            if expected != case["output"]:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    f"case {case_index} does not match two-marker horizontal bands",
+                    {},
+                )
+        assert marker_rows is not None
+        return RuleResult(
+            self.name,
+            True,
+            "MATCH",
+            "matched two single markers drawing top/bottom horizontal band frames",
+            {
+                "active_height": active_height,
+                "active_width": active_width,
+                "top_marker_row": marker_rows[0],
+                "bottom_marker_row": marker_rows[1],
+                "background_color": 0,
+            },
+        )
+
+    def build(
+        self,
+        task_id: str,
+        task: dict,
+        output_path: str,
+        metadata: dict[str, Any],
+    ) -> CandidateModel:
+        build_two_marker_horizontal_bands_model(
+            output_path,
+            active_height=metadata["active_height"],
+            active_width=metadata["active_width"],
+            top_marker_row=metadata["top_marker_row"],
+            bottom_marker_row=metadata["bottom_marker_row"],
+            background_color=metadata["background_color"],
+        )
+        return CandidateModel(task_id, self.name, output_path, metadata)
+
+
+def _dynamic_line_projection(grid: list[list[int]]) -> tuple[list[list[int]], list[dict[str, Any]]] | None:
+    height, width = grid_shape(grid)
+    result = [[0 for _ in range(width)] for _ in range(height)]
+    observed: list[dict[str, Any]] = []
+
+    for color in sorted({cell for row in grid for cell in row if cell != 0}):
+        horizontal_rows = [
+            row_index
+            for row_index, row in enumerate(grid)
+            if all(cell == color for cell in row)
+        ]
+        vertical_cols = [
+            col_index
+            for col_index in range(width)
+            if all(grid[row_index][col_index] == color for row_index in range(height))
+        ]
+        if horizontal_rows and vertical_cols:
+            return None
+        if len(horizontal_rows) > 1 or len(vertical_cols) > 1:
+            return None
+        if not horizontal_rows and not vertical_cols:
+            continue
+
+        if horizontal_rows:
+            line_row = horizontal_rows[0]
+            if line_row == 0 or line_row == height - 1:
+                return None
+            observed.append({"color": color, "axis": "horizontal", "index": line_row})
+            for col in range(width):
+                result[line_row][col] = color
+            for row_index, row in enumerate(grid):
+                for col_index, cell in enumerate(row):
+                    if cell != color or row_index == line_row:
+                        continue
+                    target_row = line_row - 1 if row_index < line_row else line_row + 1
+                    result[target_row][col_index] = color
+        else:
+            line_col = vertical_cols[0]
+            if line_col == 0 or line_col == width - 1:
+                return None
+            observed.append({"color": color, "axis": "vertical", "index": line_col})
+            for row_index in range(height):
+                result[row_index][line_col] = color
+            for row_index, row in enumerate(grid):
+                for col_index, cell in enumerate(row):
+                    if cell != color or col_index == line_col:
+                        continue
+                    target_col = line_col - 1 if col_index < line_col else line_col + 1
+                    result[row_index][target_col] = color
+
+    if not observed:
+        return None
+    return result, observed
+
+
+class DynamicLineProjectionRule(BaseRule):
+    """Project stray cells of a full-line color onto cells adjacent to that line."""
+
+    name = "DynamicLineProjectionRule"
+    priority = 31
+
+    def match(self, task: dict) -> RuleResult:
+        cases = _train_cases(task)
+        observed_cases: list[list[dict[str, Any]]] = []
+        for case_index, case in enumerate(cases):
+            if grid_shape(case["input"]) != grid_shape(case["output"]):
+                return RuleResult(self.name, False, "REJECT", "line_projection_requires_same_size", {})
+            expected = _dynamic_line_projection(case["input"])
+            if expected is None:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    f"case {case_index} has no safe full-line projection structure",
+                    {},
+                )
+            projected, observed = expected
+            if projected != case["output"]:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    f"case {case_index} line projection does not match output",
+                    {},
+                )
+            observed_cases.append(observed)
+        return RuleResult(
+            self.name,
+            True,
+            "MATCH",
+            "matched dynamic projection of same-color stray cells next to full lines",
+            {"mode": "dynamic_line_projection", "observed": observed_cases},
+        )
+
+    def build(
+        self,
+        task_id: str,
+        task: dict,
+        output_path: str,
+        metadata: dict[str, Any],
+    ) -> CandidateModel:
+        build_dynamic_line_projection_model(output_path)
+        return CandidateModel(task_id, self.name, output_path, metadata)
+
+
+def _rectangular_cavity_fill(
+    grid: list[list[int]],
+    background_color: int = 0,
+    wall_color: int = 5,
+    fill_color: int = 4,
+) -> tuple[list[list[int]], list[dict[str, int]]]:
+    height, width = grid_shape(grid)
+    output = [row[:] for row in grid]
+    seen: set[tuple[int, int]] = set()
+    cavities: list[dict[str, int]] = []
+
+    for start_row in range(height):
+        for start_col in range(width):
+            if (start_row, start_col) in seen or grid[start_row][start_col] != background_color:
+                continue
+            stack = [(start_row, start_col)]
+            seen.add((start_row, start_col))
+            points: list[tuple[int, int]] = []
+            while stack:
+                row, col = stack.pop()
+                points.append((row, col))
+                for row_delta, col_delta in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    next_row = row + row_delta
+                    next_col = col + col_delta
+                    if not (0 <= next_row < height and 0 <= next_col < width):
+                        continue
+                    coord = (next_row, next_col)
+                    if coord in seen or grid[next_row][next_col] != background_color:
+                        continue
+                    seen.add(coord)
+                    stack.append(coord)
+
+            rows = [row for row, _ in points]
+            cols = [col for _, col in points]
+            top = min(rows)
+            bottom = max(rows)
+            left = min(cols)
+            right = max(cols)
+            cavity_height = bottom - top + 1
+            cavity_width = right - left + 1
+            if top == 0 or bottom == height - 1:
+                continue
+            if len(points) != cavity_height * cavity_width:
+                continue
+            if any(grid[top - 1][col] != wall_color for col in range(left, right + 1)):
+                continue
+            if any(grid[bottom + 1][col] != wall_color for col in range(left, right + 1)):
+                continue
+            if left > 0 and any(grid[row][left - 1] != wall_color for row in range(top, bottom + 1)):
+                continue
+            if right < width - 1 and any(grid[row][right + 1] != wall_color for row in range(top, bottom + 1)):
+                continue
+
+            if left == 0 and right < width - 1:
+                beyond_right_wall = right + 2
+                if beyond_right_wall < width and (
+                    grid[top - 1][beyond_right_wall] == wall_color
+                    or grid[bottom + 1][beyond_right_wall] == wall_color
+                ):
+                    continue
+            if right == width - 1 and left > 0:
+                beyond_left_wall = left - 2
+                if beyond_left_wall >= 0 and (
+                    grid[top - 1][beyond_left_wall] == wall_color
+                    or grid[bottom + 1][beyond_left_wall] == wall_color
+                ):
+                    continue
+
+            for row, col in points:
+                output[row][col] = fill_color
+            cavities.append(
+                {
+                    "top": top,
+                    "left": left,
+                    "height": cavity_height,
+                    "width": cavity_width,
+                }
+            )
+    return output, cavities
+
+
+class DynamicRectangularCavityFillRule(BaseRule):
+    """Fill rectangular background cavities bounded by color-5 walls."""
+
+    name = "DynamicRectangularCavityFillRule"
+    priority = 32
+
+    def match(self, task: dict) -> RuleResult:
+        cases = _train_cases(task)
+        observed: list[list[dict[str, int]]] = []
+        changed_total = 0
+        max_cavity_height = 0
+        max_cavity_width = 0
+        for case_index, case in enumerate(cases):
+            if grid_shape(case["input"]) != grid_shape(case["output"]):
+                return RuleResult(self.name, False, "REJECT", "rectangular_cavity_requires_same_size", {})
+            input_colors = {cell for row in case["input"] for cell in row}
+            output_colors = {cell for row in case["output"] for cell in row}
+            if not input_colors <= {0, 5}:
+                return RuleResult(self.name, False, "REJECT", "rectangular_cavity_input_must_use_only_0_and_5", {})
+            if not output_colors <= {0, 4, 5}:
+                return RuleResult(self.name, False, "REJECT", "rectangular_cavity_output_must_use_only_0_4_5", {})
+            for row_index, row in enumerate(case["input"]):
+                for col_index, old_color in enumerate(row):
+                    new_color = case["output"][row_index][col_index]
+                    if old_color == new_color:
+                        continue
+                    if old_color != 0 or new_color != 4:
+                        return RuleResult(
+                            self.name,
+                            False,
+                            "REJECT",
+                            f"case {case_index} has non 0->4 change at row {row_index}, col {col_index}",
+                            {},
+                        )
+
+            expected, cavities = _rectangular_cavity_fill(case["input"])
+            if expected != case["output"]:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    f"case {case_index} rectangular cavity fill does not match output",
+                    {},
+                )
+            if cavities:
+                max_cavity_height = max(max_cavity_height, max(cavity["height"] for cavity in cavities))
+                max_cavity_width = max(max_cavity_width, max(cavity["width"] for cavity in cavities))
+            observed.append(cavities)
+            changed_total += sum(
+                1
+                for row_index, row in enumerate(case["input"])
+                for col_index, old_color in enumerate(row)
+                if old_color != case["output"][row_index][col_index]
+            )
+        if changed_total == 0:
+            return RuleResult(self.name, False, "REJECT", "rectangular_cavity_no_cells_changed", {})
+        if max_cavity_height > 10 or max_cavity_width > 10:
+            return RuleResult(
+                self.name,
+                True,
+                "POSSIBLE",
+                "matched rectangular cavity fill but observed cavity exceeds current builder limit",
+                {
+                    "builder_available": False,
+                    "blocked_reason": "rectangular_cavity_exceeds_builder_limit",
+                    "max_cavity_height": max_cavity_height,
+                    "max_cavity_width": max_cavity_width,
+                    "observed": observed,
+                },
+            )
+        return RuleResult(
+            self.name,
+            True,
+            "MATCH",
+            "matched dynamic rectangular 0-cavity fill bounded by color-5 walls",
+            {
+                "background_color": 0,
+                "wall_color": 5,
+                "fill_color": 4,
+                "max_cavity_height": 10,
+                "max_cavity_width": 10,
+                "observed": observed,
+            },
+        )
+
+    def build(
+        self,
+        task_id: str,
+        task: dict,
+        output_path: str,
+        metadata: dict[str, Any],
+    ) -> CandidateModel:
+        build_dynamic_rectangular_cavity_fill_model(
+            output_path,
+            background_color=metadata["background_color"],
+            wall_color=metadata["wall_color"],
+            fill_color=metadata["fill_color"],
+            max_cavity_height=metadata["max_cavity_height"],
+            max_cavity_width=metadata["max_cavity_width"],
+        )
         return CandidateModel(task_id, self.name, output_path, metadata)
 
 
@@ -3829,6 +4373,114 @@ def _frame_bboxes(grid: list[list[int]], color: int) -> list[tuple[int, int, int
     return bboxes
 
 
+def _largest_frame_recolor_crop(
+    grid: list[list[int]],
+    min_frame_size: int,
+    max_frame_size: int,
+) -> dict[str, Any] | None:
+    colors = sorted({color for row in grid for color in row if color != 0})
+    if len(colors) != 2:
+        return None
+    counts = {color: sum(cell == color for row in grid for cell in row) for color in colors}
+    sorted_by_count = sorted(colors, key=lambda color: (counts[color], color))
+    marker_color = sorted_by_count[0]
+    source_color = sorted_by_count[1]
+    if counts[source_color] <= counts[marker_color]:
+        return None
+
+    candidates: list[dict[str, Any]] = []
+    for top, left, height, width in _frame_bboxes(grid, source_color):
+        if not (min_frame_size <= height <= max_frame_size and min_frame_size <= width <= max_frame_size):
+            continue
+        crop = _crop_grid(grid, top, left, height, width)
+        recolored = [[marker_color if cell != 0 else 0 for cell in row] for row in crop]
+        candidates.append(
+            {
+                "top": top,
+                "left": left,
+                "height": height,
+                "width": width,
+                "area": height * width,
+                "source_color": source_color,
+                "marker_color": marker_color,
+                "grid": recolored,
+            }
+        )
+    if not candidates:
+        return None
+
+    max_area = max(candidate["area"] for candidate in candidates)
+    best = [candidate for candidate in candidates if candidate["area"] == max_area]
+    if len(best) != 1:
+        return None
+    return best[0]
+
+
+class DynamicLargestFrameRecolorCropRule(BaseRule):
+    """Crop the largest same-color frame and recolor all nonzero cells to the marker color."""
+
+    name = "DynamicLargestFrameRecolorCropRule"
+    priority = 29
+
+    def match(self, task: dict) -> RuleResult:
+        cases = _train_cases(task)
+        min_frame_size = 4
+        max_frame_size = 8
+        observed: list[dict[str, int]] = []
+        for case_index, case in enumerate(cases):
+            result = _largest_frame_recolor_crop(case["input"], min_frame_size, max_frame_size)
+            if result is None:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    f"case {case_index} has no unique largest recolorable frame",
+                    {},
+                )
+            if result["grid"] != case["output"]:
+                return RuleResult(
+                    self.name,
+                    False,
+                    "REJECT",
+                    f"case {case_index} largest frame recolor does not match output",
+                    {},
+                )
+            observed.append(
+                {
+                    "height": int(result["height"]),
+                    "width": int(result["width"]),
+                    "source_color": int(result["source_color"]),
+                    "marker_color": int(result["marker_color"]),
+                }
+            )
+        return RuleResult(
+            self.name,
+            True,
+            "MATCH",
+            "matched dynamic largest-frame crop with nonzero cells recolored to marker color",
+            {
+                "mode": "dynamic_largest_frame_recolor_crop",
+                "min_frame_size": min_frame_size,
+                "max_frame_size": max_frame_size,
+                "observed": observed,
+            },
+        )
+
+    def build(
+        self,
+        task_id: str,
+        task: dict,
+        output_path: str,
+        metadata: dict[str, Any],
+    ) -> CandidateModel:
+        build_dynamic_largest_frame_recolor_crop_model(
+            output_path,
+            min_frame_size=int(metadata.get("min_frame_size", 4)),
+            max_frame_size=int(metadata.get("max_frame_size", 8)),
+        )
+        return CandidateModel(task_id, self.name, output_path, metadata)
+
+
 class FrameInteriorRule(BaseRule):
     """Probe frame interior/extract/fill/remove transformations."""
 
@@ -4155,6 +4807,7 @@ def third_round_probe_rules() -> list[BaseRule]:
         DynamicQuadrantPanelSelectRule(),
         DynamicBBoxCropRule(),
         FrameInteriorRule(),
+        DynamicLargestFrameRecolorCropRule(),
         ObjectEditRule(),
         ComposedRuleSearch(),
     ]
@@ -4168,6 +4821,11 @@ def first_version_rules() -> list[BaseRule]:
         OneStepTranslationRule(),
         MirrorRule(),
         DynamicActiveMirrorRule(),
+        DiagonalBottomFillRule(),
+        BottomMarkerVerticalStripeRule(),
+        TwoMarkerHorizontalBandRule(),
+        DynamicLineProjectionRule(),
+        DynamicRectangularCavityFillRule(),
         RotateRule(),
         CropRule(),
         ScaleRepeatRule(),
@@ -4192,6 +4850,7 @@ def first_version_rules() -> list[BaseRule]:
         DynamicBBoxCropRule(),
         DynamicNonBackgroundBBoxCropRule(),
         FrameInteriorRule(),
+        DynamicLargestFrameRecolorCropRule(),
         ComposedRuleSearch(),
         DynamicBBoxExtremeColorSwapRule(),
     ]

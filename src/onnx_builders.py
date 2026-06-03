@@ -760,6 +760,860 @@ def build_dynamic_active_mirror_model(
     )
 
 
+def build_dynamic_left_column_diagonal_bottom_fill_model(
+    output_path: str,
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Build task084-style left-column preserve plus anti-diagonal and bottom fill."""
+    if height != width:
+        raise ValueError("dynamic diagonal-bottom fill requires square static dimensions")
+    select_weights = np.ones((1, num_channels, 1, 1), dtype=np.float32)
+    offsets = np.arange(height, dtype=np.int64)
+    reverse_indices = np.arange(height - 1, -1, -1, dtype=np.int64)
+    one = np.array(1, dtype=np.int64)
+    last_index = np.array(height - 1, dtype=np.int64)
+    zero_int = np.array(0, dtype=np.int64)
+    zero_threshold = np.array(0.0, dtype=np.float32)
+
+    initializers = [
+        numpy_helper.from_array(select_weights, name="SelectW"),
+        numpy_helper.from_array(zero_threshold, name="Zero"),
+        numpy_helper.from_array(offsets, name="Offsets"),
+        numpy_helper.from_array(reverse_indices, name="ReverseIndices"),
+        numpy_helper.from_array(one, name="One"),
+        numpy_helper.from_array(last_index, name="LastIndex"),
+        numpy_helper.from_array(zero_int, name="ZeroIndex"),
+        numpy_helper.from_array(_one_hot_color(2, num_channels), name="DiagonalColor"),
+        numpy_helper.from_array(_one_hot_color(4, num_channels), name="BottomColor"),
+    ]
+
+    nodes = [
+        helper.make_node(
+            "Conv",
+            ["input", "SelectW"],
+            ["active_sum"],
+            name="active_sum",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        helper.make_node("Greater", ["active_sum", "Zero"], ["active_cell_bool"], name="active_cell_bool"),
+        _cast_to_float("active_cell_bool", "active_cell_float"),
+        helper.make_node("ReduceSum", ["active_cell_float"], ["row_sum"], name="row_sum", axes=[3], keepdims=0),
+        helper.make_node("ReduceSum", ["active_cell_float"], ["col_sum"], name="col_sum", axes=[2], keepdims=0),
+        helper.make_node("Greater", ["row_sum", "Zero"], ["row_any"], name="row_any"),
+        helper.make_node("Greater", ["col_sum", "Zero"], ["col_any"], name="col_any"),
+        _cast_to_float("row_any", "row_any_float"),
+        _cast_to_float("col_any", "col_any_float"),
+        helper.make_node("Gather", ["row_any_float", "ReverseIndices"], ["row_any_reverse"], name="row_any_reverse", axis=2),
+        helper.make_node("Gather", ["col_any_float", "ReverseIndices"], ["col_any_reverse"], name="col_any_reverse", axis=2),
+        helper.make_node("ArgMax", ["row_any_reverse"], ["bottom_distance_keep"], name="bottom_distance_keep", axis=2, keepdims=0),
+        helper.make_node("ArgMax", ["col_any_reverse"], ["right_distance_keep"], name="right_distance_keep", axis=2, keepdims=0),
+        helper.make_node("Squeeze", ["bottom_distance_keep"], ["bottom_distance"], name="bottom_distance", axes=[0, 1]),
+        helper.make_node("Squeeze", ["right_distance_keep"], ["right_distance"], name="right_distance", axes=[0, 1]),
+        helper.make_node("Sub", ["LastIndex", "bottom_distance"], ["bottom"], name="bottom"),
+        helper.make_node("Sub", ["LastIndex", "right_distance"], ["right"], name="right"),
+        helper.make_node("Add", ["bottom", "One"], ["active_height"], name="active_height"),
+        helper.make_node("Add", ["right", "One"], ["active_width"], name="active_width"),
+        helper.make_node("Less", ["Offsets", "active_height"], ["valid_rows"], name="valid_rows"),
+        helper.make_node("Less", ["Offsets", "active_width"], ["valid_cols"], name="valid_cols"),
+        helper.make_node("Unsqueeze", ["valid_rows"], ["valid_rows_2d"], name="valid_rows_2d", axes=[1]),
+        helper.make_node("Unsqueeze", ["valid_cols"], ["valid_cols_2d"], name="valid_cols_2d", axes=[0]),
+        helper.make_node("And", ["valid_rows_2d", "valid_cols_2d"], ["active_bool"], name="active_bool"),
+        helper.make_node("Greater", ["Offsets", "ZeroIndex"], ["col_positive"], name="col_positive"),
+        helper.make_node("Less", ["Offsets", "bottom"], ["row_before_bottom"], name="row_before_bottom"),
+        helper.make_node("Equal", ["Offsets", "bottom"], ["row_is_bottom"], name="row_is_bottom"),
+        helper.make_node("Sub", ["right", "Offsets"], ["anti_diag_cols"], name="anti_diag_cols"),
+        helper.make_node("Unsqueeze", ["Offsets"], ["col_offsets_2d"], name="col_offsets_2d", axes=[0]),
+        helper.make_node("Unsqueeze", ["anti_diag_cols"], ["anti_diag_cols_2d"], name="anti_diag_cols_2d", axes=[1]),
+        helper.make_node("Unsqueeze", ["col_positive"], ["col_positive_2d"], name="col_positive_2d", axes=[0]),
+        helper.make_node("Unsqueeze", ["row_before_bottom"], ["row_before_bottom_2d"], name="row_before_bottom_2d", axes=[1]),
+        helper.make_node("Unsqueeze", ["row_is_bottom"], ["row_is_bottom_2d"], name="row_is_bottom_2d", axes=[1]),
+        helper.make_node("Equal", ["col_offsets_2d", "anti_diag_cols_2d"], ["anti_diag_position"], name="anti_diag_position"),
+        helper.make_node("And", ["anti_diag_position", "row_before_bottom_2d"], ["anti_diag_rows"], name="anti_diag_rows"),
+        helper.make_node("And", ["anti_diag_rows", "col_positive_2d"], ["anti_diag_inside_cols"], name="anti_diag_inside_cols"),
+        helper.make_node("And", ["anti_diag_inside_cols", "active_bool"], ["diagonal_bool"], name="diagonal_bool"),
+        helper.make_node("And", ["row_is_bottom_2d", "col_positive_2d"], ["bottom_candidate"], name="bottom_candidate"),
+        helper.make_node("And", ["bottom_candidate", "active_bool"], ["bottom_bool"], name="bottom_bool"),
+        helper.make_node("Or", ["diagonal_bool", "bottom_bool"], ["draw_bool"], name="draw_bool"),
+        helper.make_node("Not", ["draw_bool"], ["not_draw_bool"], name="not_draw_bool"),
+        helper.make_node("And", ["active_bool", "not_draw_bool"], ["keep_bool"], name="keep_bool"),
+        _cast_to_float("keep_bool", "keep_float"),
+        _cast_to_float("diagonal_bool", "diagonal_float"),
+        _cast_to_float("bottom_bool", "bottom_float"),
+        helper.make_node("Mul", ["input", "keep_float"], ["kept_input"], name="kept_input"),
+        helper.make_node("Mul", ["DiagonalColor", "diagonal_float"], ["diagonal_draw"], name="diagonal_draw"),
+        helper.make_node("Mul", ["BottomColor", "bottom_float"], ["bottom_draw"], name="bottom_draw"),
+        helper.make_node("Add", ["kept_input", "diagonal_draw"], ["with_diagonal"], name="with_diagonal"),
+        helper.make_node("Add", ["with_diagonal", "bottom_draw"], ["output"], name="output"),
+    ]
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        "dynamic_left_column_diagonal_bottom_fill",
+        num_channels,
+        height,
+        width,
+    )
+
+
+def _append_dynamic_column_mask_nodes(
+    nodes: list[onnx.NodeProto],
+    initializers: list[onnx.TensorProto],
+    marker_col_name: str,
+    offsets_name: str,
+    prefix: str,
+    deltas: Sequence[int],
+) -> str:
+    mask_names: list[str] = []
+    for index, delta in enumerate(deltas):
+        delta_name = f"{prefix}_Delta_{index}"
+        target_name = f"{prefix}_Target_{index}"
+        mask_name = f"{prefix}_Mask_{index}"
+        initializers.append(numpy_helper.from_array(np.array(delta, dtype=np.int64), name=delta_name))
+        nodes.append(helper.make_node("Add", [marker_col_name, delta_name], [target_name], name=target_name))
+        nodes.append(helper.make_node("Equal", [offsets_name, target_name], [mask_name], name=mask_name))
+        mask_names.append(mask_name)
+    if not mask_names:
+        raise ValueError("deltas must not be empty")
+    accum = mask_names[0]
+    for index, mask_name in enumerate(mask_names[1:], start=1):
+        next_name = f"{prefix}_Any_{index}"
+        nodes.append(helper.make_node("Or", [accum, mask_name], [next_name], name=next_name))
+        accum = next_name
+    return accum
+
+
+def build_dynamic_bottom_marker_vertical_stripes_model(
+    output_path: str,
+    fill_color: int = 5,
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Build task200-style marker-color vertical stripes with color-5 connectors."""
+    if fill_color < 0 or fill_color >= num_channels:
+        raise ValueError(f"fill_color must be within 0..{num_channels - 1}")
+    any_color_weights = np.ones((1, num_channels, 1, 1), dtype=np.float32)
+    nonzero_weights = np.ones((1, num_channels, 1, 1), dtype=np.float32)
+    nonzero_weights[:, 0, :, :] = 0.0
+    offsets = np.arange(height, dtype=np.int64)
+    reverse_indices = np.arange(height - 1, -1, -1, dtype=np.int64)
+    one = np.array(1, dtype=np.int64)
+    last_index = np.array(height - 1, dtype=np.int64)
+    zero_int = np.array(0, dtype=np.int64)
+    zero_threshold = np.array(0.0, dtype=np.float32)
+
+    initializers = [
+        numpy_helper.from_array(any_color_weights, name="AnyColorW"),
+        numpy_helper.from_array(nonzero_weights, name="NonzeroW"),
+        numpy_helper.from_array(zero_threshold, name="Zero"),
+        numpy_helper.from_array(offsets, name="Offsets"),
+        numpy_helper.from_array(reverse_indices, name="ReverseIndices"),
+        numpy_helper.from_array(one, name="One"),
+        numpy_helper.from_array(last_index, name="LastIndex"),
+        numpy_helper.from_array(zero_int, name="ZeroIndex"),
+        numpy_helper.from_array(_one_hot_color(fill_color, num_channels), name="FillColor"),
+    ]
+
+    nodes: list[onnx.NodeProto] = [
+        helper.make_node(
+            "Conv",
+            ["input", "AnyColorW"],
+            ["active_sum"],
+            name="active_sum",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        helper.make_node("Greater", ["active_sum", "Zero"], ["active_cell_bool"], name="active_cell_bool"),
+        _cast_to_float("active_cell_bool", "active_cell_float"),
+        helper.make_node("ReduceSum", ["active_cell_float"], ["row_sum"], name="row_sum", axes=[3], keepdims=0),
+        helper.make_node("ReduceSum", ["active_cell_float"], ["col_sum"], name="col_sum", axes=[2], keepdims=0),
+        helper.make_node("Greater", ["row_sum", "Zero"], ["row_any"], name="row_any"),
+        helper.make_node("Greater", ["col_sum", "Zero"], ["col_any"], name="col_any"),
+        _cast_to_float("row_any", "row_any_float"),
+        _cast_to_float("col_any", "col_any_float"),
+        helper.make_node("Gather", ["row_any_float", "ReverseIndices"], ["row_any_reverse"], name="row_any_reverse", axis=2),
+        helper.make_node("Gather", ["col_any_float", "ReverseIndices"], ["col_any_reverse"], name="col_any_reverse", axis=2),
+        helper.make_node("ArgMax", ["row_any_reverse"], ["bottom_distance_keep"], name="bottom_distance_keep", axis=2, keepdims=0),
+        helper.make_node("ArgMax", ["col_any_reverse"], ["right_distance_keep"], name="right_distance_keep", axis=2, keepdims=0),
+        helper.make_node("Squeeze", ["bottom_distance_keep"], ["bottom_distance"], name="bottom_distance", axes=[0, 1]),
+        helper.make_node("Squeeze", ["right_distance_keep"], ["right_distance"], name="right_distance", axes=[0, 1]),
+        helper.make_node("Sub", ["LastIndex", "bottom_distance"], ["bottom"], name="bottom"),
+        helper.make_node("Sub", ["LastIndex", "right_distance"], ["right"], name="right"),
+        helper.make_node("Add", ["bottom", "One"], ["active_height"], name="active_height"),
+        helper.make_node("Add", ["right", "One"], ["active_width"], name="active_width"),
+        helper.make_node("Less", ["Offsets", "active_height"], ["valid_rows"], name="valid_rows"),
+        helper.make_node("Less", ["Offsets", "active_width"], ["valid_cols"], name="valid_cols"),
+        helper.make_node("Unsqueeze", ["valid_rows"], ["valid_rows_2d"], name="valid_rows_2d", axes=[1]),
+        helper.make_node("Unsqueeze", ["valid_cols"], ["valid_cols_2d"], name="valid_cols_2d", axes=[0]),
+        helper.make_node("And", ["valid_rows_2d", "valid_cols_2d"], ["active_bool"], name="active_bool"),
+        helper.make_node(
+            "Conv",
+            ["input", "NonzeroW"],
+            ["nonzero_sum"],
+            name="nonzero_sum",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        helper.make_node("Greater", ["nonzero_sum", "Zero"], ["nonzero_bool"], name="nonzero_bool"),
+        _cast_to_float("nonzero_bool", "nonzero_float"),
+        helper.make_node("ReduceSum", ["nonzero_float"], ["nonzero_col_sum"], name="nonzero_col_sum", axes=[2], keepdims=0),
+        helper.make_node("ArgMax", ["nonzero_col_sum"], ["marker_col_keep"], name="marker_col_keep", axis=2, keepdims=0),
+        helper.make_node("Squeeze", ["marker_col_keep"], ["marker_col"], name="marker_col", axes=[0, 1]),
+        helper.make_node("Mul", ["input", "nonzero_float"], ["marker_cells"], name="marker_cells"),
+        helper.make_node("ReduceMax", ["marker_cells"], ["MarkerColor"], name="MarkerColor", axes=[2, 3], keepdims=1),
+    ]
+
+    vertical_col_bool = _append_dynamic_column_mask_nodes(
+        nodes,
+        initializers,
+        "marker_col",
+        "Offsets",
+        "VerticalCols",
+        range(0, width, 2),
+    )
+    top_connector_col_bool = _append_dynamic_column_mask_nodes(
+        nodes,
+        initializers,
+        "marker_col",
+        "Offsets",
+        "TopConnectorCols",
+        range(1, width, 4),
+    )
+    bottom_connector_col_bool = _append_dynamic_column_mask_nodes(
+        nodes,
+        initializers,
+        "marker_col",
+        "Offsets",
+        "BottomConnectorCols",
+        range(3, width, 4),
+    )
+
+    nodes.extend(
+        [
+            helper.make_node("Equal", ["Offsets", "ZeroIndex"], ["top_row"], name="top_row"),
+            helper.make_node("Equal", ["Offsets", "bottom"], ["bottom_row"], name="bottom_row"),
+            helper.make_node("Unsqueeze", [vertical_col_bool], ["vertical_cols_2d"], name="vertical_cols_2d", axes=[0]),
+            helper.make_node("Unsqueeze", [top_connector_col_bool], ["top_connector_cols_2d"], name="top_connector_cols_2d", axes=[0]),
+            helper.make_node(
+                "Unsqueeze",
+                [bottom_connector_col_bool],
+                ["bottom_connector_cols_2d"],
+                name="bottom_connector_cols_2d",
+                axes=[0],
+            ),
+            helper.make_node("Unsqueeze", ["top_row"], ["top_row_2d"], name="top_row_2d", axes=[1]),
+            helper.make_node("Unsqueeze", ["bottom_row"], ["bottom_row_2d"], name="bottom_row_2d", axes=[1]),
+            helper.make_node("And", ["vertical_cols_2d", "active_bool"], ["vertical_bool"], name="vertical_bool"),
+            helper.make_node("And", ["top_row_2d", "top_connector_cols_2d"], ["top_connector_raw"], name="top_connector_raw"),
+            helper.make_node("And", ["top_connector_raw", "active_bool"], ["top_connector_bool"], name="top_connector_bool"),
+            helper.make_node(
+                "And",
+                ["bottom_row_2d", "bottom_connector_cols_2d"],
+                ["bottom_connector_raw"],
+                name="bottom_connector_raw",
+            ),
+            helper.make_node(
+                "And",
+                ["bottom_connector_raw", "active_bool"],
+                ["bottom_connector_bool"],
+                name="bottom_connector_bool",
+            ),
+            helper.make_node("Or", ["top_connector_bool", "bottom_connector_bool"], ["connector_bool"], name="connector_bool"),
+            helper.make_node("Or", ["vertical_bool", "connector_bool"], ["draw_bool"], name="draw_bool"),
+            helper.make_node("Not", ["draw_bool"], ["not_draw_bool"], name="not_draw_bool"),
+            helper.make_node("And", ["active_bool", "not_draw_bool"], ["keep_bool"], name="keep_bool"),
+            _cast_to_float("keep_bool", "keep_float"),
+            _cast_to_float("vertical_bool", "vertical_float"),
+            _cast_to_float("connector_bool", "connector_float"),
+            helper.make_node("Mul", ["input", "keep_float"], ["kept_input"], name="kept_input"),
+            helper.make_node("Mul", ["MarkerColor", "vertical_float"], ["vertical_draw"], name="vertical_draw"),
+            helper.make_node("Mul", ["FillColor", "connector_float"], ["connector_draw"], name="connector_draw"),
+            helper.make_node("Add", ["kept_input", "vertical_draw"], ["with_vertical"], name="with_vertical"),
+            helper.make_node("Add", ["with_vertical", "connector_draw"], ["output"], name="output"),
+        ]
+    )
+
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        "dynamic_bottom_marker_vertical_stripes",
+        num_channels,
+        height,
+        width,
+    )
+
+
+def build_dynamic_line_projection_model(
+    output_path: str,
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Build same-shape projection of stray same-color cells next to full lines."""
+    any_color_weights = np.ones((1, num_channels, 1, 1), dtype=np.float32)
+    offsets = np.arange(height, dtype=np.int64)
+    zero_float = np.array(0.0, dtype=np.float32)
+    half_float = np.array(0.5, dtype=np.float32)
+    one_int = np.array(1, dtype=np.int64)
+
+    initializers = [
+        numpy_helper.from_array(any_color_weights, name="AnyColorW"),
+        numpy_helper.from_array(zero_float, name="Zero"),
+        numpy_helper.from_array(offsets, name="Offsets"),
+        numpy_helper.from_array(one_int, name="One"),
+        numpy_helper.from_array(half_float, name="Half"),
+        numpy_helper.from_array(_one_hot_color(0, num_channels), name="BackgroundColor"),
+    ]
+
+    nodes: list[onnx.NodeProto] = [
+        helper.make_node(
+            "Conv",
+            ["input", "AnyColorW"],
+            ["active_sum"],
+            name="active_sum",
+            kernel_shape=[1, 1],
+            strides=[1, 1],
+        ),
+        helper.make_node("Greater", ["active_sum", "Zero"], ["active_cell_bool"], name="active_cell_bool"),
+        _cast_to_float("active_cell_bool", "active_cell_float"),
+        helper.make_node("ReduceSum", ["active_cell_float"], ["active_row_sum"], name="active_row_sum", axes=[3], keepdims=0),
+        helper.make_node("ReduceSum", ["active_cell_float"], ["active_col_sum"], name="active_col_sum", axes=[2], keepdims=0),
+        helper.make_node("Greater", ["active_row_sum", "Zero"], ["active_row_bool"], name="active_row_bool"),
+        helper.make_node("Greater", ["active_col_sum", "Zero"], ["active_col_bool"], name="active_col_bool"),
+        _cast_to_float("active_row_bool", "active_row_float"),
+        _cast_to_float("active_col_bool", "active_col_float"),
+        helper.make_node("ReduceSum", ["active_row_float"], ["active_height"], name="active_height", axes=[2], keepdims=0),
+        helper.make_node("ReduceSum", ["active_col_float"], ["active_width"], name="active_width", axes=[2], keepdims=0),
+    ]
+
+    color_outputs: list[str] = []
+    for color in range(1, num_channels):
+        prefix = f"line_project_c{color}"
+        select_weights = np.zeros((1, num_channels, 1, 1), dtype=np.float32)
+        select_weights[0, color, 0, 0] = 1.0
+        initializers.extend(
+            [
+                numpy_helper.from_array(select_weights, name=f"{prefix}_SelectW"),
+                numpy_helper.from_array(_one_hot_color(color, num_channels), name=f"{prefix}_Color"),
+            ]
+        )
+        nodes.extend(
+            [
+                helper.make_node(
+                    "Conv",
+                    ["input", f"{prefix}_SelectW"],
+                    [f"{prefix}_mask"],
+                    name=f"{prefix}_mask",
+                    kernel_shape=[1, 1],
+                    strides=[1, 1],
+                ),
+                helper.make_node("ReduceSum", [f"{prefix}_mask"], [f"{prefix}_row_sum"], name=f"{prefix}_row_sum", axes=[3], keepdims=0),
+                helper.make_node("ReduceSum", [f"{prefix}_mask"], [f"{prefix}_col_sum"], name=f"{prefix}_col_sum", axes=[2], keepdims=0),
+                helper.make_node("Sub", [f"{prefix}_row_sum", "active_width"], [f"{prefix}_hline_diff_raw"], name=f"{prefix}_hline_diff_raw"),
+                helper.make_node("Abs", [f"{prefix}_hline_diff_raw"], [f"{prefix}_hline_diff"], name=f"{prefix}_hline_diff"),
+                helper.make_node("Less", [f"{prefix}_hline_diff", "Half"], [f"{prefix}_hline_bool"], name=f"{prefix}_hline_bool"),
+                helper.make_node("Sub", [f"{prefix}_col_sum", "active_height"], [f"{prefix}_vline_diff_raw"], name=f"{prefix}_vline_diff_raw"),
+                helper.make_node("Abs", [f"{prefix}_vline_diff_raw"], [f"{prefix}_vline_diff"], name=f"{prefix}_vline_diff"),
+                helper.make_node("Less", [f"{prefix}_vline_diff", "Half"], [f"{prefix}_vline_bool"], name=f"{prefix}_vline_bool"),
+                _cast_to_float(f"{prefix}_hline_bool", f"{prefix}_hline_float"),
+                _cast_to_float(f"{prefix}_vline_bool", f"{prefix}_vline_float"),
+                helper.make_node(
+                    "ReduceSum",
+                    [f"{prefix}_hline_float"],
+                    [f"{prefix}_hline_count"],
+                    name=f"{prefix}_hline_count",
+                    axes=[2],
+                    keepdims=0,
+                ),
+                helper.make_node(
+                    "ReduceSum",
+                    [f"{prefix}_vline_float"],
+                    [f"{prefix}_vline_count"],
+                    name=f"{prefix}_vline_count",
+                    axes=[2],
+                    keepdims=0,
+                ),
+                helper.make_node("Greater", [f"{prefix}_hline_count", "Zero"], [f"{prefix}_h_exists"], name=f"{prefix}_h_exists"),
+                helper.make_node("Greater", [f"{prefix}_vline_count", "Zero"], [f"{prefix}_v_exists"], name=f"{prefix}_v_exists"),
+                helper.make_node("ArgMax", [f"{prefix}_hline_float"], [f"{prefix}_hline_index_keep"], name=f"{prefix}_hline_index_keep", axis=2, keepdims=0),
+                helper.make_node("ArgMax", [f"{prefix}_vline_float"], [f"{prefix}_vline_index_keep"], name=f"{prefix}_vline_index_keep", axis=2, keepdims=0),
+                helper.make_node("Squeeze", [f"{prefix}_hline_index_keep"], [f"{prefix}_hline_index"], name=f"{prefix}_hline_index", axes=[0, 1]),
+                helper.make_node("Squeeze", [f"{prefix}_vline_index_keep"], [f"{prefix}_vline_index"], name=f"{prefix}_vline_index", axes=[0, 1]),
+                helper.make_node("Sub", [f"{prefix}_hline_index", "One"], [f"{prefix}_hline_above_index"], name=f"{prefix}_hline_above_index"),
+                helper.make_node("Add", [f"{prefix}_hline_index", "One"], [f"{prefix}_hline_below_index"], name=f"{prefix}_hline_below_index"),
+                helper.make_node("Sub", [f"{prefix}_vline_index", "One"], [f"{prefix}_vline_left_index"], name=f"{prefix}_vline_left_index"),
+                helper.make_node("Add", [f"{prefix}_vline_index", "One"], [f"{prefix}_vline_right_index"], name=f"{prefix}_vline_right_index"),
+                helper.make_node("Less", ["Offsets", f"{prefix}_hline_index"], [f"{prefix}_row_above_bool"], name=f"{prefix}_row_above_bool"),
+                helper.make_node("Greater", ["Offsets", f"{prefix}_hline_index"], [f"{prefix}_row_below_bool"], name=f"{prefix}_row_below_bool"),
+                helper.make_node("Less", ["Offsets", f"{prefix}_vline_index"], [f"{prefix}_col_left_bool"], name=f"{prefix}_col_left_bool"),
+                helper.make_node("Greater", ["Offsets", f"{prefix}_vline_index"], [f"{prefix}_col_right_bool"], name=f"{prefix}_col_right_bool"),
+                helper.make_node("Equal", ["Offsets", f"{prefix}_hline_above_index"], [f"{prefix}_target_above_row_bool"], name=f"{prefix}_target_above_row_bool"),
+                helper.make_node("Equal", ["Offsets", f"{prefix}_hline_below_index"], [f"{prefix}_target_below_row_bool"], name=f"{prefix}_target_below_row_bool"),
+                helper.make_node("Equal", ["Offsets", f"{prefix}_vline_left_index"], [f"{prefix}_target_left_col_bool"], name=f"{prefix}_target_left_col_bool"),
+                helper.make_node("Equal", ["Offsets", f"{prefix}_vline_right_index"], [f"{prefix}_target_right_col_bool"], name=f"{prefix}_target_right_col_bool"),
+                helper.make_node("Unsqueeze", [f"{prefix}_hline_bool"], [f"{prefix}_hline_rows"], name=f"{prefix}_hline_rows", axes=[3]),
+                helper.make_node("Unsqueeze", [f"{prefix}_vline_bool"], [f"{prefix}_vline_cols"], name=f"{prefix}_vline_cols", axes=[2]),
+                helper.make_node("And", [f"{prefix}_hline_rows", "active_cell_bool"], [f"{prefix}_hline_active"], name=f"{prefix}_hline_active"),
+                helper.make_node("And", [f"{prefix}_hline_active", f"{prefix}_h_exists"], [f"{prefix}_hline_draw"], name=f"{prefix}_hline_draw"),
+                helper.make_node("And", [f"{prefix}_vline_cols", "active_cell_bool"], [f"{prefix}_vline_active"], name=f"{prefix}_vline_active"),
+                helper.make_node("And", [f"{prefix}_vline_active", f"{prefix}_v_exists"], [f"{prefix}_vline_draw"], name=f"{prefix}_vline_draw"),
+                helper.make_node("Unsqueeze", [f"{prefix}_row_above_bool"], [f"{prefix}_row_above"], name=f"{prefix}_row_above", axes=[0, 1, 3]),
+                helper.make_node("Unsqueeze", [f"{prefix}_row_below_bool"], [f"{prefix}_row_below"], name=f"{prefix}_row_below", axes=[0, 1, 3]),
+                _cast_to_float(f"{prefix}_row_above", f"{prefix}_row_above_float"),
+                _cast_to_float(f"{prefix}_row_below", f"{prefix}_row_below_float"),
+                helper.make_node("Mul", [f"{prefix}_mask", f"{prefix}_row_above_float"], [f"{prefix}_above_cells"], name=f"{prefix}_above_cells"),
+                helper.make_node("Mul", [f"{prefix}_mask", f"{prefix}_row_below_float"], [f"{prefix}_below_cells"], name=f"{prefix}_below_cells"),
+                helper.make_node(
+                    "ReduceSum",
+                    [f"{prefix}_above_cells"],
+                    [f"{prefix}_above_col_sum"],
+                    name=f"{prefix}_above_col_sum",
+                    axes=[2],
+                    keepdims=0,
+                ),
+                helper.make_node(
+                    "ReduceSum",
+                    [f"{prefix}_below_cells"],
+                    [f"{prefix}_below_col_sum"],
+                    name=f"{prefix}_below_col_sum",
+                    axes=[2],
+                    keepdims=0,
+                ),
+                helper.make_node("Greater", [f"{prefix}_above_col_sum", "Zero"], [f"{prefix}_above_cols_bool"], name=f"{prefix}_above_cols_bool"),
+                helper.make_node("Greater", [f"{prefix}_below_col_sum", "Zero"], [f"{prefix}_below_cols_bool"], name=f"{prefix}_below_cols_bool"),
+                helper.make_node(
+                    "Unsqueeze",
+                    [f"{prefix}_target_above_row_bool"],
+                    [f"{prefix}_target_above_row"],
+                    name=f"{prefix}_target_above_row",
+                    axes=[0, 1, 3],
+                ),
+                helper.make_node(
+                    "Unsqueeze",
+                    [f"{prefix}_target_below_row_bool"],
+                    [f"{prefix}_target_below_row"],
+                    name=f"{prefix}_target_below_row",
+                    axes=[0, 1, 3],
+                ),
+                helper.make_node("Unsqueeze", [f"{prefix}_above_cols_bool"], [f"{prefix}_above_cols"], name=f"{prefix}_above_cols", axes=[2]),
+                helper.make_node("Unsqueeze", [f"{prefix}_below_cols_bool"], [f"{prefix}_below_cols"], name=f"{prefix}_below_cols", axes=[2]),
+                helper.make_node("And", [f"{prefix}_target_above_row", f"{prefix}_above_cols"], [f"{prefix}_hproj_above_raw"], name=f"{prefix}_hproj_above_raw"),
+                helper.make_node("And", [f"{prefix}_target_below_row", f"{prefix}_below_cols"], [f"{prefix}_hproj_below_raw"], name=f"{prefix}_hproj_below_raw"),
+                helper.make_node("And", [f"{prefix}_hproj_above_raw", "active_cell_bool"], [f"{prefix}_hproj_above_active"], name=f"{prefix}_hproj_above_active"),
+                helper.make_node("And", [f"{prefix}_hproj_below_raw", "active_cell_bool"], [f"{prefix}_hproj_below_active"], name=f"{prefix}_hproj_below_active"),
+                helper.make_node("And", [f"{prefix}_hproj_above_active", f"{prefix}_h_exists"], [f"{prefix}_hproj_above"], name=f"{prefix}_hproj_above"),
+                helper.make_node("And", [f"{prefix}_hproj_below_active", f"{prefix}_h_exists"], [f"{prefix}_hproj_below"], name=f"{prefix}_hproj_below"),
+                helper.make_node("Unsqueeze", [f"{prefix}_col_left_bool"], [f"{prefix}_col_left"], name=f"{prefix}_col_left", axes=[0, 1, 2]),
+                helper.make_node("Unsqueeze", [f"{prefix}_col_right_bool"], [f"{prefix}_col_right"], name=f"{prefix}_col_right", axes=[0, 1, 2]),
+                _cast_to_float(f"{prefix}_col_left", f"{prefix}_col_left_float"),
+                _cast_to_float(f"{prefix}_col_right", f"{prefix}_col_right_float"),
+                helper.make_node("Mul", [f"{prefix}_mask", f"{prefix}_col_left_float"], [f"{prefix}_left_cells"], name=f"{prefix}_left_cells"),
+                helper.make_node("Mul", [f"{prefix}_mask", f"{prefix}_col_right_float"], [f"{prefix}_right_cells"], name=f"{prefix}_right_cells"),
+                helper.make_node(
+                    "ReduceSum",
+                    [f"{prefix}_left_cells"],
+                    [f"{prefix}_left_row_sum"],
+                    name=f"{prefix}_left_row_sum",
+                    axes=[3],
+                    keepdims=0,
+                ),
+                helper.make_node(
+                    "ReduceSum",
+                    [f"{prefix}_right_cells"],
+                    [f"{prefix}_right_row_sum"],
+                    name=f"{prefix}_right_row_sum",
+                    axes=[3],
+                    keepdims=0,
+                ),
+                helper.make_node("Greater", [f"{prefix}_left_row_sum", "Zero"], [f"{prefix}_left_rows_bool"], name=f"{prefix}_left_rows_bool"),
+                helper.make_node("Greater", [f"{prefix}_right_row_sum", "Zero"], [f"{prefix}_right_rows_bool"], name=f"{prefix}_right_rows_bool"),
+                helper.make_node(
+                    "Unsqueeze",
+                    [f"{prefix}_target_left_col_bool"],
+                    [f"{prefix}_target_left_col"],
+                    name=f"{prefix}_target_left_col",
+                    axes=[0, 1, 2],
+                ),
+                helper.make_node(
+                    "Unsqueeze",
+                    [f"{prefix}_target_right_col_bool"],
+                    [f"{prefix}_target_right_col"],
+                    name=f"{prefix}_target_right_col",
+                    axes=[0, 1, 2],
+                ),
+                helper.make_node("Unsqueeze", [f"{prefix}_left_rows_bool"], [f"{prefix}_left_rows"], name=f"{prefix}_left_rows", axes=[3]),
+                helper.make_node("Unsqueeze", [f"{prefix}_right_rows_bool"], [f"{prefix}_right_rows"], name=f"{prefix}_right_rows", axes=[3]),
+                helper.make_node("And", [f"{prefix}_target_left_col", f"{prefix}_left_rows"], [f"{prefix}_vproj_left_raw"], name=f"{prefix}_vproj_left_raw"),
+                helper.make_node("And", [f"{prefix}_target_right_col", f"{prefix}_right_rows"], [f"{prefix}_vproj_right_raw"], name=f"{prefix}_vproj_right_raw"),
+                helper.make_node("And", [f"{prefix}_vproj_left_raw", "active_cell_bool"], [f"{prefix}_vproj_left_active"], name=f"{prefix}_vproj_left_active"),
+                helper.make_node("And", [f"{prefix}_vproj_right_raw", "active_cell_bool"], [f"{prefix}_vproj_right_active"], name=f"{prefix}_vproj_right_active"),
+                helper.make_node("And", [f"{prefix}_vproj_left_active", f"{prefix}_v_exists"], [f"{prefix}_vproj_left"], name=f"{prefix}_vproj_left"),
+                helper.make_node("And", [f"{prefix}_vproj_right_active", f"{prefix}_v_exists"], [f"{prefix}_vproj_right"], name=f"{prefix}_vproj_right"),
+                helper.make_node("Or", [f"{prefix}_hline_draw", f"{prefix}_hproj_above"], [f"{prefix}_hdraw_0"], name=f"{prefix}_hdraw_0"),
+                helper.make_node("Or", [f"{prefix}_hdraw_0", f"{prefix}_hproj_below"], [f"{prefix}_hdraw"], name=f"{prefix}_hdraw"),
+                helper.make_node("Or", [f"{prefix}_vline_draw", f"{prefix}_vproj_left"], [f"{prefix}_vdraw_0"], name=f"{prefix}_vdraw_0"),
+                helper.make_node("Or", [f"{prefix}_vdraw_0", f"{prefix}_vproj_right"], [f"{prefix}_vdraw"], name=f"{prefix}_vdraw"),
+                helper.make_node("Or", [f"{prefix}_hdraw", f"{prefix}_vdraw"], [f"{prefix}_draw_bool"], name=f"{prefix}_draw_bool"),
+                _cast_to_float(f"{prefix}_draw_bool", f"{prefix}_draw_float"),
+                helper.make_node("Mul", [f"{prefix}_draw_float", f"{prefix}_Color"], [f"{prefix}_output"], name=f"{prefix}_output"),
+            ]
+        )
+        color_outputs.append(f"{prefix}_output")
+
+    rolling = color_outputs[0]
+    for index, color_output in enumerate(color_outputs[1:], start=1):
+        next_name = f"line_project_color_sum_{index}"
+        nodes.append(helper.make_node("Add", [rolling, color_output], [next_name], name=next_name))
+        rolling = next_name
+    nodes.extend(
+        [
+            helper.make_node("ReduceSum", [rolling], ["draw_any"], name="draw_any", axes=[1], keepdims=1),
+            helper.make_node("Sub", ["active_cell_float", "draw_any"], ["background_mask"], name="background_mask"),
+            helper.make_node("Mul", ["background_mask", "BackgroundColor"], ["background_output"], name="background_output"),
+            helper.make_node("Add", [rolling, "background_output"], ["output"], name="output"),
+        ]
+    )
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        "dynamic_line_projection",
+        num_channels,
+        height,
+        width,
+    )
+
+
+def build_dynamic_rectangular_cavity_fill_model(
+    output_path: str,
+    background_color: int = 0,
+    wall_color: int = 5,
+    fill_color: int = 4,
+    max_cavity_height: int = 10,
+    max_cavity_width: int = 10,
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Build a dynamic fill for rectangular background cavities bounded by wall color.
+
+    The supported cavities are solid background rectangles with wall-colored top
+    and bottom borders. Left/right borders may be wall-colored or the grid
+    boundary. Boundary-side cavities require the horizontal wall to terminate at
+    the side wall, which prevents filling exterior gaps next to longer bars.
+    """
+    if len({background_color, wall_color, fill_color}) != 3:
+        raise ValueError("background, wall, and fill colors must be distinct")
+    for color in (background_color, wall_color, fill_color):
+        if color < 0 or color >= num_channels:
+            raise ValueError(f"color {color} is outside 0..{num_channels - 1}")
+    if max_cavity_height <= 0 or max_cavity_height > height - 2:
+        raise ValueError("max_cavity_height must be within 1..height-2")
+    if max_cavity_width <= 0 or max_cavity_width > width:
+        raise ValueError("max_cavity_width must be within 1..width")
+
+    select_weights = np.zeros((2, num_channels, 1, 1), dtype=np.float32)
+    select_weights[0, background_color, 0, 0] = 1.0
+    select_weights[1, wall_color, 0, 0] = 1.0
+    background_weights = np.zeros((1, num_channels, 1, 1), dtype=np.float32)
+    background_weights[0, background_color, 0, 0] = 1.0
+
+    initializers: list[onnx.TensorProto] = [
+        numpy_helper.from_array(select_weights, name="RectCavitySelectBW"),
+        numpy_helper.from_array(background_weights, name="RectCavityBackgroundW"),
+        numpy_helper.from_array(np.array(0.5, dtype=np.float32), name="RectCavityHalf"),
+        numpy_helper.from_array(np.ones((1, 1, 1, 1), dtype=np.float32), name="RectCavityOne"),
+        numpy_helper.from_array(_one_hot_color(fill_color, num_channels), name="RectCavityFillColor"),
+    ]
+    nodes: list[onnx.NodeProto] = [
+        helper.make_node(
+            "Conv",
+            ["input", "RectCavitySelectBW"],
+            ["rect_cavity_bw"],
+            name="rect_cavity_bw",
+            kernel_shape=[1, 1],
+        ),
+        helper.make_node(
+            "Conv",
+            ["input", "RectCavityBackgroundW"],
+            ["rect_cavity_background"],
+            name="rect_cavity_background",
+            kernel_shape=[1, 1],
+        ),
+    ]
+
+    spread_outputs: list[str] = []
+    spread_names: dict[tuple[int, int], str] = {}
+
+    def spread_name(cavity_height: int, cavity_width: int) -> str:
+        key = (cavity_height, cavity_width)
+        existing = spread_names.get(key)
+        if existing is not None:
+            return existing
+        name = f"RectCavitySpread_{cavity_height}_{cavity_width}"
+        spread_names[key] = name
+        initializers.append(
+            numpy_helper.from_array(
+                np.ones((1, 1, cavity_height, cavity_width), dtype=np.float32),
+                name=name,
+            )
+        )
+        return name
+
+    def add_pattern(
+        prefix: str,
+        kernel: np.ndarray,
+        required_count: int,
+        match_pads: list[int],
+        spread_pads: list[int],
+        cavity_height: int,
+        cavity_width: int,
+    ) -> None:
+        kernel_name = f"{prefix}_Kernel"
+        required_name = f"{prefix}_Required"
+        initializers.append(numpy_helper.from_array(kernel.astype(np.float32, copy=False), name=kernel_name))
+        initializers.append(numpy_helper.from_array(np.array(float(required_count), dtype=np.float32), name=required_name))
+
+        conv_attrs: dict[str, object] = {"name": f"{prefix}_sum", "kernel_shape": list(kernel.shape[2:])}
+        if any(match_pads):
+            conv_attrs["pads"] = match_pads
+        nodes.extend(
+            [
+                helper.make_node(
+                    "Conv",
+                    ["rect_cavity_bw", kernel_name],
+                    [f"{prefix}_sum"],
+                    **conv_attrs,
+                ),
+                helper.make_node("Sub", [f"{prefix}_sum", required_name], [f"{prefix}_diff_raw"], name=f"{prefix}_diff_raw"),
+                helper.make_node("Abs", [f"{prefix}_diff_raw"], [f"{prefix}_diff"], name=f"{prefix}_diff"),
+                helper.make_node(
+                    "Less",
+                    [f"{prefix}_diff", "RectCavityHalf"],
+                    [f"{prefix}_match_bool"],
+                    name=f"{prefix}_match_bool",
+                ),
+                _cast_to_float(f"{prefix}_match_bool", f"{prefix}_match"),
+                helper.make_node(
+                    "Conv",
+                    [f"{prefix}_match", spread_name(cavity_height, cavity_width)],
+                    [f"{prefix}_spread"],
+                    name=f"{prefix}_spread",
+                    kernel_shape=[cavity_height, cavity_width],
+                    pads=spread_pads,
+                ),
+            ]
+        )
+        spread_outputs.append(f"{prefix}_spread")
+
+    for cavity_height in range(1, max_cavity_height + 1):
+        for cavity_width in range(1, max_cavity_width + 1):
+            positive_count = cavity_height * cavity_width + 2 * cavity_width + 2 * cavity_height
+            full_kernel = np.zeros((1, 2, cavity_height + 2, cavity_width + 2), dtype=np.float32)
+            full_kernel[0, 0, 1 : cavity_height + 1, 1 : cavity_width + 1] = 1.0
+            full_kernel[0, 1, 0, 1 : cavity_width + 1] = 1.0
+            full_kernel[0, 1, cavity_height + 1, 1 : cavity_width + 1] = 1.0
+            full_kernel[0, 1, 1 : cavity_height + 1, 0] = 1.0
+            full_kernel[0, 1, 1 : cavity_height + 1, cavity_width + 1] = 1.0
+            add_pattern(
+                f"rect_cavity_full_{cavity_height}_{cavity_width}",
+                full_kernel,
+                positive_count,
+                [0, 0, 0, 0],
+                [cavity_height, cavity_width, cavity_height, cavity_width],
+                cavity_height,
+                cavity_width,
+            )
+
+            boundary_positive_count = cavity_height * cavity_width + 2 * cavity_width + cavity_height
+
+            left_kernel = np.zeros((1, 2, cavity_height + 2, cavity_width + 3), dtype=np.float32)
+            left_kernel[0, :, :, 0] = -1.0
+            left_kernel[0, 0, 1 : cavity_height + 1, 1 : cavity_width + 1] = 1.0
+            left_kernel[0, 1, 0, 1 : cavity_width + 1] = 1.0
+            left_kernel[0, 1, cavity_height + 1, 1 : cavity_width + 1] = 1.0
+            left_kernel[0, 1, 1 : cavity_height + 1, cavity_width + 1] = 1.0
+            left_kernel[0, 1, 0, cavity_width + 2] = -1.0
+            left_kernel[0, 1, cavity_height + 1, cavity_width + 2] = -1.0
+            add_pattern(
+                f"rect_cavity_left_{cavity_height}_{cavity_width}",
+                left_kernel,
+                boundary_positive_count,
+                [0, 1, 0, 0],
+                [cavity_height, cavity_width - 1, cavity_height, cavity_width + 1],
+                cavity_height,
+                cavity_width,
+            )
+
+            right_kernel = np.zeros((1, 2, cavity_height + 2, cavity_width + 3), dtype=np.float32)
+            right_kernel[0, 1, 0, 0] = -1.0
+            right_kernel[0, 1, cavity_height + 1, 0] = -1.0
+            right_kernel[0, 1, 1 : cavity_height + 1, 1] = 1.0
+            right_kernel[0, 0, 1 : cavity_height + 1, 2 : cavity_width + 2] = 1.0
+            right_kernel[0, 1, 0, 2 : cavity_width + 2] = 1.0
+            right_kernel[0, 1, cavity_height + 1, 2 : cavity_width + 2] = 1.0
+            right_kernel[0, :, :, cavity_width + 2] = -1.0
+            add_pattern(
+                f"rect_cavity_right_{cavity_height}_{cavity_width}",
+                right_kernel,
+                boundary_positive_count,
+                [0, 1, 0, 1],
+                [cavity_height, cavity_width, cavity_height, cavity_width - 1],
+                cavity_height,
+                cavity_width,
+            )
+
+    rolling = spread_outputs[0]
+    for index, spread_output in enumerate(spread_outputs[1:], start=1):
+        next_name = f"rect_cavity_spread_sum_{index}"
+        nodes.append(helper.make_node("Add", [rolling, spread_output], [next_name], name=next_name))
+        rolling = next_name
+
+    nodes.extend(
+        [
+            helper.make_node("Clip", [rolling], ["rect_cavity_any"], name="rect_cavity_any", min=0.0, max=1.0),
+            helper.make_node(
+                "Mul",
+                ["rect_cavity_any", "rect_cavity_background"],
+                ["rect_cavity_fill_mask"],
+                name="rect_cavity_fill_mask",
+            ),
+            helper.make_node(
+                "Sub",
+                ["RectCavityOne", "rect_cavity_fill_mask"],
+                ["rect_cavity_keep_mask"],
+                name="rect_cavity_keep_mask",
+            ),
+            helper.make_node("Mul", ["input", "rect_cavity_keep_mask"], ["rect_cavity_kept"], name="rect_cavity_kept"),
+            helper.make_node(
+                "Mul",
+                ["RectCavityFillColor", "rect_cavity_fill_mask"],
+                ["rect_cavity_filled"],
+                name="rect_cavity_filled",
+            ),
+            helper.make_node("Add", ["rect_cavity_kept", "rect_cavity_filled"], ["output"], name="output"),
+        ]
+    )
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        "dynamic_rectangular_cavity_fill",
+        num_channels,
+        height,
+        width,
+    )
+
+
+def build_two_marker_horizontal_bands_model(
+    output_path: str,
+    active_height: int,
+    active_width: int,
+    top_marker_row: int,
+    bottom_marker_row: int,
+    background_color: int = 0,
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Build fixed-shape horizontal bands whose colors come from two marker rows."""
+    if active_height <= 0 or active_height > height:
+        raise ValueError("active_height must be within 1..height")
+    if active_width <= 0 or active_width > width:
+        raise ValueError("active_width must be within 1..width")
+    if not (0 < top_marker_row < bottom_marker_row < active_height - 1):
+        raise ValueError("marker rows must be interior rows with top < bottom")
+    if background_color < 0 or background_color >= num_channels:
+        raise ValueError(f"background_color must be within 0..{num_channels - 1}")
+
+    split_row = (top_marker_row + bottom_marker_row) // 2
+    non_background_mask = np.ones((1, num_channels, 1, 1), dtype=np.float32)
+    non_background_mask[:, background_color, :, :] = 0.0
+    top_marker_mask = np.zeros((1, 1, height, width), dtype=np.float32)
+    top_marker_mask[:, :, top_marker_row, :active_width] = 1.0
+    bottom_marker_mask = np.zeros((1, 1, height, width), dtype=np.float32)
+    bottom_marker_mask[:, :, bottom_marker_row, :active_width] = 1.0
+    top_draw_mask = np.zeros((1, 1, height, width), dtype=np.float32)
+    bottom_draw_mask = np.zeros((1, 1, height, width), dtype=np.float32)
+    active_mask = np.zeros((1, 1, height, width), dtype=np.float32)
+    active_mask[:, :, :active_height, :active_width] = 1.0
+
+    for row in range(0, split_row + 1):
+        top_draw_mask[:, :, row, 0] = 1.0
+        top_draw_mask[:, :, row, active_width - 1] = 1.0
+    top_draw_mask[:, :, 0, :active_width] = 1.0
+    top_draw_mask[:, :, top_marker_row, :active_width] = 1.0
+
+    for row in range(split_row + 1, active_height):
+        bottom_draw_mask[:, :, row, 0] = 1.0
+        bottom_draw_mask[:, :, row, active_width - 1] = 1.0
+    bottom_draw_mask[:, :, bottom_marker_row, :active_width] = 1.0
+    bottom_draw_mask[:, :, active_height - 1, :active_width] = 1.0
+
+    draw_mask = np.clip(top_draw_mask + bottom_draw_mask, 0.0, 1.0)
+    background_mask = active_mask - draw_mask
+
+    initializers = [
+        numpy_helper.from_array(non_background_mask, name="BandNonBackgroundMask"),
+        numpy_helper.from_array(top_marker_mask, name="BandTopMarkerMask"),
+        numpy_helper.from_array(bottom_marker_mask, name="BandBottomMarkerMask"),
+        numpy_helper.from_array(top_draw_mask, name="BandTopDrawMask"),
+        numpy_helper.from_array(bottom_draw_mask, name="BandBottomDrawMask"),
+        numpy_helper.from_array(background_mask, name="BandBackgroundMask"),
+        numpy_helper.from_array(_one_hot_color(background_color, num_channels), name="BandBackgroundColor"),
+    ]
+    nodes = [
+        helper.make_node("Mul", ["input", "BandNonBackgroundMask"], ["band_non_background"], name="band_non_background"),
+        helper.make_node("Mul", ["band_non_background", "BandTopMarkerMask"], ["band_top_marker_cells"], name="band_top_marker_cells"),
+        helper.make_node(
+            "ReduceSum",
+            ["band_top_marker_cells"],
+            ["band_top_color"],
+            name="band_top_color",
+            axes=[2, 3],
+            keepdims=1,
+        ),
+        helper.make_node(
+            "Mul",
+            ["band_non_background", "BandBottomMarkerMask"],
+            ["band_bottom_marker_cells"],
+            name="band_bottom_marker_cells",
+        ),
+        helper.make_node(
+            "ReduceSum",
+            ["band_bottom_marker_cells"],
+            ["band_bottom_color"],
+            name="band_bottom_color",
+            axes=[2, 3],
+            keepdims=1,
+        ),
+        helper.make_node("Mul", ["band_top_color", "BandTopDrawMask"], ["band_top_output"], name="band_top_output"),
+        helper.make_node(
+            "Mul",
+            ["band_bottom_color", "BandBottomDrawMask"],
+            ["band_bottom_output"],
+            name="band_bottom_output",
+        ),
+        helper.make_node("Mul", ["BandBackgroundColor", "BandBackgroundMask"], ["band_background"], name="band_background"),
+        helper.make_node("Add", ["band_top_output", "band_bottom_output"], ["band_foreground"], name="band_foreground"),
+        helper.make_node("Add", ["band_foreground", "band_background"], ["output"], name="output"),
+    ]
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        "two_marker_horizontal_bands",
+        num_channels,
+        height,
+        width,
+    )
+
+
 def build_dynamic_quadrant_panel_select_model(
     color_map: dict[int, int],
     output_path: str,
@@ -1200,6 +2054,205 @@ def build_dynamic_bbox_extreme_color_swap_model(
         nodes,
         initializers,
         "dynamic_bbox_extreme_color_swap",
+        num_channels,
+        height,
+        width,
+    )
+
+
+def build_dynamic_largest_frame_recolor_crop_model(
+    output_path: str,
+    min_frame_size: int = 4,
+    max_frame_size: int = 8,
+    num_channels: int = DEFAULT_COLORS,
+    height: int = DEFAULT_HEIGHT,
+    width: int = DEFAULT_WIDTH,
+) -> None:
+    """Crop the largest dynamic frame and recolor its nonzero cells to the marker color."""
+    if min_frame_size < 3:
+        raise ValueError("min_frame_size must be at least 3")
+    if max_frame_size < min_frame_size:
+        raise ValueError("max_frame_size must be >= min_frame_size")
+    if max_frame_size > min(height, width):
+        raise ValueError("max_frame_size cannot exceed the model grid size")
+
+    channel_mask = np.ones((1, num_channels), dtype=np.float32)
+    channel_mask[0, 0] = 0.0
+    nonzero_weights = np.ones((1, num_channels, 1, 1), dtype=np.float32)
+    nonzero_weights[0, 0, 0, 0] = 0.0
+    zero_channel = np.zeros((1, num_channels, 1, 1), dtype=np.float32)
+    zero_channel[0, 0, 0, 0] = 1.0
+    channel_indices = np.arange(num_channels, dtype=np.int64)
+    offsets = np.arange(height, dtype=np.int64)
+
+    initializers = [
+        numpy_helper.from_array(channel_mask, name="ChannelMask"),
+        numpy_helper.from_array(nonzero_weights, name="NonZeroW"),
+        numpy_helper.from_array(zero_channel, name="ZeroChannel"),
+        numpy_helper.from_array(channel_indices, name="ChannelIndices"),
+        numpy_helper.from_array(offsets, name="Offsets"),
+        numpy_helper.from_array(np.array([1, -1], dtype=np.int64), name="FlatShape"),
+        numpy_helper.from_array(np.array([0.0], dtype=np.float32), name="BestScore0"),
+        numpy_helper.from_array(np.array([0], dtype=np.int64), name="BestTop0"),
+        numpy_helper.from_array(np.array([0], dtype=np.int64), name="BestLeft0"),
+        numpy_helper.from_array(np.array([0], dtype=np.int64), name="BestHeight0"),
+        numpy_helper.from_array(np.array([0], dtype=np.int64), name="BestWidth0"),
+        numpy_helper.from_array(np.array([0.5], dtype=np.float32), name="Half"),
+        numpy_helper.from_array(np.array([1.0], dtype=np.float32), name="OneFloat"),
+        numpy_helper.from_array(np.array([10000.0], dtype=np.float32), name="LargePenalty"),
+    ]
+
+    nodes = [
+        helper.make_node("ReduceSum", ["input"], ["color_counts"], name="color_counts", axes=[2, 3], keepdims=0),
+        helper.make_node("Mul", ["color_counts", "ChannelMask"], ["nonzero_counts"], name="nonzero_counts"),
+        helper.make_node("ArgMax", ["nonzero_counts"], ["source_index"], name="source_index", axis=1, keepdims=0),
+        helper.make_node("Less", ["nonzero_counts", "Half"], ["absent_bool"], name="absent_bool"),
+        helper.make_node("Equal", ["ChannelIndices", "source_index"], ["source_channel_bool"], name="source_channel_bool"),
+        _cast_to_float("source_channel_bool", "source_channel_float"),
+        _cast_to_float("absent_bool", "absent_float"),
+        helper.make_node("Add", ["absent_float", "source_channel_float"], ["marker_penalty_mask"], name="marker_penalty_mask"),
+        helper.make_node("Mul", ["marker_penalty_mask", "LargePenalty"], ["marker_penalty"], name="marker_penalty"),
+        helper.make_node("Add", ["nonzero_counts", "marker_penalty"], ["marker_scores"], name="marker_scores"),
+        helper.make_node("ArgMin", ["marker_scores"], ["marker_index"], name="marker_index", axis=1, keepdims=0),
+        helper.make_node("Equal", ["ChannelIndices", "marker_index"], ["marker_channel_bool"], name="marker_channel_bool"),
+        _cast_to_float("marker_channel_bool", "marker_channel_float"),
+        helper.make_node("Unsqueeze", ["source_channel_float"], ["source_channel"], name="source_channel", axes=[0, 2, 3]),
+        helper.make_node("Unsqueeze", ["marker_channel_float"], ["marker_channel"], name="marker_channel", axes=[0, 2, 3]),
+        helper.make_node("Mul", ["input", "source_channel"], ["source_cells"], name="source_cells"),
+        helper.make_node("ReduceSum", ["source_cells"], ["source_mask"], name="source_mask", axes=[1], keepdims=1),
+    ]
+
+    best_score = "BestScore0"
+    best_top = "BestTop0"
+    best_left = "BestLeft0"
+    best_height = "BestHeight0"
+    best_width = "BestWidth0"
+    for frame_height in range(min_frame_size, max_frame_size + 1):
+        for frame_width in range(min_frame_size, max_frame_size + 1):
+            prefix = f"frame_{frame_height}_{frame_width}"
+            kernel = np.zeros((1, 1, frame_height, frame_width), dtype=np.float32)
+            kernel[:, :, 0, :] = 1.0
+            kernel[:, :, -1, :] = 1.0
+            kernel[:, :, :, 0] = 1.0
+            kernel[:, :, :, -1] = 1.0
+            border_count = float((2 * frame_height) + (2 * frame_width) - 4)
+            output_width = width - frame_width + 1
+            initializers.extend(
+                [
+                    numpy_helper.from_array(kernel, name=f"{prefix}_kernel"),
+                    numpy_helper.from_array(np.array([border_count - 0.5], dtype=np.float32), name=f"{prefix}_threshold"),
+                    numpy_helper.from_array(np.array([float(frame_height * frame_width)], dtype=np.float32), name=f"{prefix}_area"),
+                    numpy_helper.from_array(np.array([output_width], dtype=np.int64), name=f"{prefix}_out_width"),
+                    numpy_helper.from_array(np.array([frame_height], dtype=np.int64), name=f"{prefix}_height"),
+                    numpy_helper.from_array(np.array([frame_width], dtype=np.int64), name=f"{prefix}_width"),
+                ]
+            )
+            nodes.extend(
+                [
+                    helper.make_node(
+                        "Conv",
+                        ["source_mask", f"{prefix}_kernel"],
+                        [f"{prefix}_border_sum"],
+                        name=f"{prefix}_border_sum",
+                        kernel_shape=[frame_height, frame_width],
+                        strides=[1, 1],
+                    ),
+                    helper.make_node(
+                        "Greater",
+                        [f"{prefix}_border_sum", f"{prefix}_threshold"],
+                        [f"{prefix}_valid_bool"],
+                        name=f"{prefix}_valid_bool",
+                    ),
+                    _cast_to_float(f"{prefix}_valid_bool", f"{prefix}_valid"),
+                    helper.make_node(
+                        "Mul",
+                        [f"{prefix}_valid", f"{prefix}_area"],
+                        [f"{prefix}_score_map"],
+                        name=f"{prefix}_score_map",
+                    ),
+                    helper.make_node(
+                        "ReduceMax",
+                        [f"{prefix}_score_map"],
+                        [f"{prefix}_score_keep"],
+                        name=f"{prefix}_score_keep",
+                        axes=[2, 3],
+                        keepdims=0,
+                    ),
+                    helper.make_node("Squeeze", [f"{prefix}_score_keep"], [f"{prefix}_score"], name=f"{prefix}_score", axes=[1]),
+                    helper.make_node("Reshape", [f"{prefix}_score_map", "FlatShape"], [f"{prefix}_flat"], name=f"{prefix}_flat"),
+                    helper.make_node("ArgMax", [f"{prefix}_flat"], [f"{prefix}_flat_index"], name=f"{prefix}_flat_index", axis=1, keepdims=0),
+                    helper.make_node(
+                        "Div",
+                        [f"{prefix}_flat_index", f"{prefix}_out_width"],
+                        [f"{prefix}_top"],
+                        name=f"{prefix}_top",
+                    ),
+                    helper.make_node(
+                        "Mod",
+                        [f"{prefix}_flat_index", f"{prefix}_out_width"],
+                        [f"{prefix}_left"],
+                        name=f"{prefix}_left",
+                    ),
+                    helper.make_node("Greater", [f"{prefix}_score", best_score], [f"{prefix}_better"], name=f"{prefix}_better"),
+                    helper.make_node("Where", [f"{prefix}_better", f"{prefix}_score", best_score], [f"{prefix}_best_score"], name=f"{prefix}_best_score"),
+                    helper.make_node("Where", [f"{prefix}_better", f"{prefix}_top", best_top], [f"{prefix}_best_top"], name=f"{prefix}_best_top"),
+                    helper.make_node("Where", [f"{prefix}_better", f"{prefix}_left", best_left], [f"{prefix}_best_left"], name=f"{prefix}_best_left"),
+                    helper.make_node(
+                        "Where",
+                        [f"{prefix}_better", f"{prefix}_height", best_height],
+                        [f"{prefix}_best_height"],
+                        name=f"{prefix}_best_height",
+                    ),
+                    helper.make_node(
+                        "Where",
+                        [f"{prefix}_better", f"{prefix}_width", best_width],
+                        [f"{prefix}_best_width"],
+                        name=f"{prefix}_best_width",
+                    ),
+                ]
+            )
+            best_score = f"{prefix}_best_score"
+            best_top = f"{prefix}_best_top"
+            best_left = f"{prefix}_best_left"
+            best_height = f"{prefix}_best_height"
+            best_width = f"{prefix}_best_width"
+
+    nodes.extend(
+        [
+            helper.make_node("Less", ["Offsets", best_height], ["valid_rows"], name="valid_rows"),
+            helper.make_node("Less", ["Offsets", best_width], ["valid_cols"], name="valid_cols"),
+            helper.make_node("Add", ["Offsets", best_top], ["raw_rows"], name="raw_rows"),
+            helper.make_node("Add", ["Offsets", best_left], ["raw_cols"], name="raw_cols"),
+            helper.make_node("Where", ["valid_rows", "raw_rows", best_top], ["source_rows"], name="source_rows"),
+            helper.make_node("Where", ["valid_cols", "raw_cols", best_left], ["source_cols"], name="source_cols"),
+            helper.make_node("Unsqueeze", ["valid_rows"], ["valid_rows_2d"], name="valid_rows_2d", axes=[1]),
+            helper.make_node("Unsqueeze", ["valid_cols"], ["valid_cols_2d"], name="valid_cols_2d", axes=[0]),
+            helper.make_node("And", ["valid_rows_2d", "valid_cols_2d"], ["active_bool"], name="active_bool"),
+            helper.make_node("Gather", ["input", "source_rows"], ["gather_rows"], name="gather_rows", axis=2),
+            helper.make_node("Gather", ["gather_rows", "source_cols"], ["crop"], name="crop", axis=3),
+            helper.make_node(
+                "Conv",
+                ["crop", "NonZeroW"],
+                ["crop_nonzero_sum"],
+                name="crop_nonzero_sum",
+                kernel_shape=[1, 1],
+                strides=[1, 1],
+            ),
+            helper.make_node("Greater", ["crop_nonzero_sum", "Half"], ["crop_nonzero_bool"], name="crop_nonzero_bool"),
+            _cast_to_float("crop_nonzero_bool", "crop_nonzero"),
+            helper.make_node("Sub", ["OneFloat", "crop_nonzero"], ["crop_zero"], name="crop_zero"),
+            helper.make_node("Mul", ["crop_nonzero", "marker_channel"], ["nonzero_recolored"], name="nonzero_recolored"),
+            helper.make_node("Mul", ["crop_zero", "ZeroChannel"], ["zero_cells"], name="zero_cells"),
+            helper.make_node("Add", ["nonzero_recolored", "zero_cells"], ["colored_crop"], name="colored_crop"),
+            _cast_to_float("active_bool", "active_float"),
+            helper.make_node("Mul", ["colored_crop", "active_float"], ["output"], name="output"),
+        ]
+    )
+    _save_checked_model(
+        output_path,
+        nodes,
+        initializers,
+        "dynamic_largest_frame_recolor_crop",
         num_channels,
         height,
         width,
