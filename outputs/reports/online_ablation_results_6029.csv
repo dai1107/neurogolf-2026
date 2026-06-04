@@ -1,0 +1,7 @@
+task_id,rule_name,ablation_zip_path,online_score,baseline_score,online_delta,decision,notes
+task025,DynamicLineProjectionRule,outputs/ablation_submissions/task025_DynamicLineProjectionRule.zip,6031.51,6029.00,2.51,promote,single-task online ablation improved over baseline
+task028,TwoMarkerHorizontalBandRule,outputs/ablation_submissions/task028_TwoMarkerHorizontalBandRule.zip,6028.80,6029.00,-0.20,reject,single-task online ablation fell below baseline
+task084,DiagonalBottomFillRule,outputs/ablation_submissions/task084_DiagonalBottomFillRule.zip,6032.31,6029.00,3.31,promote,single-task online ablation improved over baseline
+task200,BottomMarkerVerticalStripeRule,outputs/ablation_submissions/task200_BottomMarkerVerticalStripeRule.zip,6031.46,6029.00,2.46,promote,single-task online ablation improved over baseline
+task367,DynamicRectangularCavityFillRule,outputs/ablation_submissions/task367_DynamicRectangularCavityFillRule.zip,6028.06,6029.00,-0.94,reject,single-task online ablation fell below baseline
+task396,DynamicLargestFrameRecolorCropRule,outputs/ablation_submissions/task396_DynamicLargestFrameRecolorCropRule.zip,6027.99,6029.00,-1.01,reject,single-task online ablation fell below baseline

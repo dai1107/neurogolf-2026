@@ -7,7 +7,7 @@ import pytest
 
 from src.build_current_model_submission import build_current_model_submission
 from src.inspect_submission import inspect_submission
-from src.onnx_builders import build_identity_model
+from src.onnx_builders import build_color_map_model, build_identity_model
 
 
 def _write_task(path, train) -> None:
@@ -92,3 +92,41 @@ def test_build_current_model_submission_rejects_validated_dir_equal_to_model_dir
             report_path=str(tmp_path / "reports" / "current.csv"),
             zip_path=str(tmp_path / "submission.zip"),
         )
+
+
+def test_build_current_model_submission_trusted_mode_skips_train_validation(tmp_path) -> None:
+    data_dir = tmp_path / "tasks"
+    model_dir = tmp_path / "models"
+    validated_dir = tmp_path / "validated"
+    zip_path = tmp_path / "submission.zip"
+    data_dir.mkdir()
+    model_dir.mkdir()
+
+    _write_task(
+        data_dir / "task001.json",
+        [{"input": [[1]], "output": [[1]]}],
+    )
+    build_color_map_model({1: 2}, str(model_dir / "task001.onnx"))
+
+    with pytest.raises(ValueError, match="0/1 valid"):
+        build_current_model_submission(
+            data_dir=str(data_dir),
+            model_dir=str(model_dir),
+            validated_dir=str(validated_dir),
+            report_path=str(tmp_path / "reports" / "strict.csv"),
+            zip_path=str(tmp_path / "strict.zip"),
+        )
+
+    summary = build_current_model_submission(
+        data_dir=str(data_dir),
+        model_dir=str(model_dir),
+        validated_dir=str(validated_dir),
+        report_path=str(tmp_path / "reports" / "trusted.csv"),
+        zip_path=str(zip_path),
+        validation_mode="trusted",
+    )
+
+    assert summary["selected_tasks"] == 1
+    assert summary["validation_mode"] == "trusted"
+    with zipfile.ZipFile(zip_path) as archive:
+        assert archive.namelist() == ["task001.onnx"]

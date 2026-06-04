@@ -1,0 +1,6 @@
+task_id,source_model_path,output_model_path,source_cost,output_cost,cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta,source_initializer_count,output_initializer_count,deduplicated_initializers
+task133,outputs\onnx\task133.onnx,outputs\candidates\deduplicated_top5\task133_DeduplicateInitializers.onnx,1406822,1406822,0,783434,783434,0,167,167,0
+task209,outputs\onnx\task209.onnx,outputs\candidates\deduplicated_top5\task209_DeduplicateInitializers.onnx,1170350,144226,-1026124,1294052,349736,-944316,2153,71,2082
+task076,outputs\onnx\task076.onnx,outputs\candidates\deduplicated_top5\task076_DeduplicateInitializers.onnx,1147810,1147810,0,948872,948872,0,44,44,0
+task157,outputs\onnx\task157.onnx,outputs\candidates\deduplicated_top5\task157_DeduplicateInitializers.onnx,1023477,1008489,-14988,857911,836955,-20956,464,37,427
+task233,outputs\onnx\task233.onnx,outputs\candidates\deduplicated_top5\task233_DeduplicateInitializers.onnx,668250,661410,-6840,938774,924434,-14340,346,65,281

@@ -1,5 +1,278 @@
 # 当前进度
 
+## 2026-06-04 - Medium/high-risk probe-only round after low online gain
+
+- User reported the full-model initializer cleanup improved the online score by
+  only about `+0.03`.
+- Decision: medium/high-risk work is now justified, but only as isolated
+  probe/candidate generation. No unverified semantic replacement was copied to
+  `outputs/onnx` or `outputs/submission.zip`.
+- Current final submission remained unchanged and usable:
+  - `python -m src.inspect_submission --zip outputs\submission.zip`: passed.
+  - ONNX count: 400.
+- Formal replacement search over strategy targets:
+  - targets: `task133`, `task076`, `task157`, `task233`, `task366`,
+    `task363`, `task319`
+  - searched formal rules: 37
+  - report rows: 259
+  - replacement count: 0
+  - report: `outputs/reports/replacement_search_report_medium_risk_targets.csv`
+- Extended `src.high_risk_ablation_probes` with a new probe-only hypothesis:
+  - `two_panel_marker_object_transfer`
+  - It splits the input into two equal panels, treats the sparse-marker panel
+    as the target, and copies source-panel objects whose marker-color layouts
+    match the target markers.
+  - This is not in `first_version_rules()` and does not build ONNX.
+- Probe results:
+  - `task366/two_panel_marker_object_transfer`: train 3/3, test 1/1,
+    arc-gen 262/262.
+  - All other strategy-target probe rows rejected on train.
+  - `task363/horizontal_zero_runs_by_marker_length` still has train 0/3
+    despite arc-gen 45/261, so it is not usable.
+- Reports:
+  - `outputs/reports/high_risk_ablation_probe_report_task366_panel_transfer.csv`
+  - `outputs/reports/high_risk_ablation_probe_report_strategy_targets.csv`
+  - earlier focused rejects:
+    `outputs/reports/high_risk_ablation_probe_report_task133_task363.csv`
+- Validation:
+  - `python -m compileall src`: passed.
+  - `python -m src.inspect_submission --zip outputs\submission.zip`: passed.
+- No ablation zip was generated in this round because no ONNX builder/candidate
+  exists yet for the passing `task366` probe. Next step is an isolated
+  `task366` builder attempt under `outputs/candidates/`, followed by strict
+  validation and a one-task ablation zip only if the generated ONNX is smaller
+  and exact.
+
+## 2026-06-04 - Full-model graph-equivalent initializer cleanup
+
+- Followed `优化策略.md` low-risk path: extended initializer cleanup from the
+  previous top-5 pass to all 400 ONNX models.
+- Updated `src.deduplicate_initializers`:
+  - `--task-ids` now defaults to all `task*.onnx` in the model directory.
+  - Removes unreferenced non-input initializers.
+  - Still merges byte-identical initializer tensors and rewires node inputs to
+    canonical names.
+  - Preserves graph inputs/outputs and does not add semantic rules.
+- Full scan report:
+  - `outputs/reports/deduplicate_initializers_all.csv`
+  - output candidates: `outputs/candidates/deduplicated_all/`
+  - improved tasks: 24 / 400
+  - total estimated cost delta: -173,602
+  - total ONNX file-size delta: -248,824 bytes
+- Largest promoted cost reductions:
+  - `task367`: 295,949 -> 219,324, delta -76,625
+  - `task319`: 78,739 -> 26,814, delta -51,925
+  - `task153`: 26,811 -> 3,320, delta -23,491
+  - `task366`: 266,691 -> 260,211, delta -6,480
+  - `task285`: 15,191 -> 10,215, delta -4,976
+- Promoted all 24 graph-equivalent improved candidates into `outputs/onnx`.
+- Also generated one-task ablation zips for the 24 promoted candidates:
+  - directory: `outputs/ablation_submissions/dedup_all/`
+  - report: `outputs/reports/ablation_submission_report_dedup_all.csv`
+  - valid zips: 24 / 24
+- Current final submission after trusted rebuild:
+  - Path: `outputs/submission.zip`
+  - ONNX count: 400
+  - Zip size: 1,312,206 bytes
+  - Estimated cost total: 6,661,880
+  - ONNX file size total: 10,981,062 bytes
+  - `python -m src.inspect_submission --zip outputs\submission.zip`: passed.
+- Validation:
+  - `python -m pytest -q tests\test_deduplicate_initializers.py`: 2 passed.
+  - `python -m pytest -q tests\test_deduplicate_initializers.py tests\test_build_current_model_submission.py tests\test_sync_and_ablation_submissions.py`: 9 passed.
+  - `python -m compileall src tests`: passed.
+  - `python -m pytest -q`: 80 passed, 2 skipped.
+  - `git diff --check`: no whitespace errors; only CRLF warnings.
+
+Remaining top-cost rule targets are still mostly semantic/high-risk:
+
+`task133`, `task076`, `task157`, `task233`, `task366`, `task367`,
+`task363`, `task209`, `task396`, `task028`, `task255`.
+
+## 2026-06-04 - Top-5 high-cost initializer dedup optimization
+
+- Current top-5 before this pass:
+  - `task133`: 1,406,822
+  - `task209`: 1,170,350
+  - `task076`: 1,147,810
+  - `task157`: 1,023,477
+  - `task233`: 668,250
+- Added exact graph-preserving optimizer:
+  - `src.deduplicate_initializers`
+  - Merges byte-identical ONNX initializers and rewires node inputs to the
+    canonical initializer.
+  - Does not change node topology or tensor values.
+- Top-5 dedup results:
+  - `task209`: 1,170,350 -> 144,226, delta -1,026,124
+  - `task157`: 1,023,477 -> 1,008,489, delta -14,988
+  - `task233`: 668,250 -> 661,410, delta -6,840
+  - `task133`: no duplicate-initializer gain
+  - `task076`: no duplicate-initializer gain
+- Extra validation for promoted dedup models:
+  - `task209`: train 3/3, test 1/1, arc-gen 262/262 passed.
+  - `task157`: train 2/2, test 1/1, arc-gen 262/262 passed.
+  - `task233`: train 3/3, test 1/1, arc-gen 262/262 passed.
+- Final model bank changes:
+  - Promoted dedup candidates into `outputs/onnx/task209.onnx`,
+    `outputs/onnx/task157.onnx`, and `outputs/onnx/task233.onnx`.
+  - Rebuilt `outputs/submission.zip` with trusted packaging.
+- Current final submission:
+  - Path: `outputs/submission.zip`
+  - ONNX count: 400
+  - Zip size: 1,332,788 bytes
+  - Estimated cost total: 6,835,482
+  - ONNX file size total: 11,229,886 bytes
+  - `python -m src.inspect_submission --zip outputs\submission.zip`: passed.
+- Reports:
+  - `outputs/reports/deduplicate_initializers_top5.csv`
+  - `outputs/reports/high_cost_task_diagnosis_current_top5.csv`
+  - `outputs/reports/replacement_search_report_current_top5.csv`
+  - `outputs/reports/high_cost_task_diagnosis_after_dedup_top10.csv`
+- Validation:
+  - `python -m pytest -q tests\test_deduplicate_initializers.py`: passed.
+  - `python -m pytest -q`: 79 passed, 2 skipped.
+
+Remaining top costs after this pass:
+
+`task133`, `task076`, `task157`, `task233`, `task367`,
+`task366`, `task363`, `task209`, `task396`, `task319`.
+
+## 2026-06-04 - Online ablation winners promoted into final submission
+
+- User submitted the six one-task ablation zips online and reported scores:
+  - `task025_DynamicLineProjectionRule.zip`: 6031.51
+  - `task028_TwoMarkerHorizontalBandRule.zip`: 6028.80
+  - `task084_DiagonalBottomFillRule.zip`: 6032.31
+  - `task200_BottomMarkerVerticalStripeRule.zip`: 6031.46
+  - `task367_DynamicRectangularCavityFillRule.zip`: 6028.06
+  - `task396_DynamicLargestFrameRecolorCropRule.zip`: 6027.99
+- Decision against 6029 baseline:
+  - Promoted: `task025`, `task084`, `task200`.
+  - Rejected for final submission: `task028`, `task367`, `task396`.
+- Report written:
+  - `outputs/reports/online_ablation_results_6029.csv`
+- Final model bank changes:
+  - Copied promoted candidates into `outputs/onnx/task025.onnx`,
+    `outputs/onnx/task084.onnx`, and `outputs/onnx/task200.onnx`.
+  - Rebuilt `outputs/submission.zip` with `--validation-mode trusted`.
+  - `task028`, `task367`, and `task396` remain baseline models in the final
+    model bank.
+- Current final submission:
+  - Path: `outputs/submission.zip`
+  - ONNX count: 400
+  - Zip size: 1,365,198 bytes
+  - Estimated cost total: 7,883,434
+  - ONNX file size total: 12,209,498 bytes
+  - `python -m src.inspect_submission --zip outputs\submission.zip`: passed.
+- Expected online effect from independent one-task ablations:
+  - baseline 6029 + 2.51 + 3.31 + 2.46 = about 6037.28
+  - This is an online-ablation estimate, not a guaranteed leaderboard score.
+- Validation:
+  - `python -m pytest -q`: 78 passed, 2 skipped.
+
+## 2026-06-04 - Code/model bank realigned to 6029 baseline and ablation workflow
+
+- Answered the model-bank mismatch:
+  - Before this round, `outputs/submission.zip` had been restored to the 6029
+    baseline, but `outputs/onnx` still contained the locally optimized 5909
+    variant.
+  - Added `src.sync_model_bank_from_submission` and synchronized
+    `outputs/onnx` from the current safe `outputs/submission.zip`.
+- Added explicit rebuild modes to `src.build_current_model_submission`:
+  - `strict`: existing local train/static/padding validation, used for new
+    generated candidates.
+  - `trusted`: packages a known online-clean baseline model bank with checker,
+    forbidden-op, file-size and cost checks, without rejecting baseline models
+    that fail local padding/static-shape heuristics.
+- Rebuilt current submission with trusted mode:
+  - selected tasks: 400 / 400
+  - missing or invalid tasks: 0
+  - estimated cost total: 10,594,016
+  - ONNX file size total: 14,849,987 bytes
+  - `python -m src.inspect_submission --zip outputs\submission.zip`: passed,
+    400 ONNX models.
+- Added `src.build_ablation_submissions` for online-safe optimization:
+  - Builds one submission zip per candidate.
+  - Each zip replaces exactly one baseline task model and keeps the other 399
+    baseline models unchanged.
+  - This avoids bundling many unproven local replacements into the final
+    submission.
+- Baseline 6029 local replacement candidates:
+  - `task084`: `DiagonalBottomFillRule`, cost 1,390,970 -> 722.
+  - `task200`: `BottomMarkerVerticalStripeRule`, cost 990,050 -> 992.
+  - `task025`: `DynamicLineProjectionRule`, cost 332,565 -> 1,289.
+  - `task367`: `DynamicRectangularCavityFillRule`, cost 295,949 -> 200,585.
+  - `task028`: `TwoMarkerHorizontalBandRule`, cost 63,050 -> 22,600.
+  - `task396`: `DynamicLargestFrameRecolorCropRule`, cost 115,080 -> 6,009.
+- Generated ablation zips under `outputs/ablation_submissions/`:
+  - `task025_DynamicLineProjectionRule.zip`
+  - `task028_TwoMarkerHorizontalBandRule.zip`
+  - `task084_DiagonalBottomFillRule.zip`
+  - `task200_BottomMarkerVerticalStripeRule.zip`
+  - `task367_DynamicRectangularCavityFillRule.zip`
+  - `task396_DynamicLargestFrameRecolorCropRule.zip`
+  - All 6 passed `src.inspect_submission`.
+- Reports:
+  - `outputs/reports/replacement_search_report_6029_baseline.csv`
+  - `outputs/reports/replacement_search_report_6029_followup.csv`
+  - `outputs/reports/ablation_submission_report_6029.csv`
+- Validation:
+  - `python -m compileall src tests`: passed.
+  - `python -m pytest -q`: 78 passed, 2 skipped.
+  - `python -m src.inspect_submission --zip outputs\submission.zip`: passed.
+  - `git diff --check` reports whitespace false positives inside binary ONNX
+    diffs; scoped check excluding ONNX passed with only CRLF warnings.
+
+Current safe final submission:
+
+- `outputs/submission.zip` remains the 6029-baseline-aligned artifact.
+- Do not promote any ablation zip to `outputs/submission.zip` until its online
+  leaderboard score is confirmed to be at least 6029.
+
+## 2026-06-04 - Online regression rollback to 6029 baseline
+
+- User-reported leaderboard scores:
+  - current locally optimized submission: 5909
+  - original baseline submission: 6029
+- Compared `submission（原baseline结果）.zip` against pre-rollback
+  `outputs/submission.zip`.
+  - Both zips contained 400 ONNX files.
+  - Missing/extra tasks: 0.
+  - Identical task models: 361.
+  - Different task models: 39.
+  - Baseline local estimated cost total: 10,594,016.
+  - Pre-rollback current local estimated cost total: 7,575,450.
+  - Baseline local estimated score total: 7088.218589.
+  - Pre-rollback current local estimated score total: 7134.687555.
+- Diagnosis:
+  - The local optimizer selected lower-cost models, so local estimated score
+    increased by about 46.47.
+  - The leaderboard dropped by 120 points, which means at least some changed
+    models were not online-equivalent to the original baseline despite passing
+    local train validation and, for some tasks, extra labelled local splits.
+  - Without per-task online ablation, the conservative fix is to remove all 39
+    changed models from the final submission and restore the exact known
+    6029-scoring baseline zip.
+- Restored final submission:
+  - `outputs/submission.zip` is now byte-for-byte equivalent at task content
+    level to the original baseline zip.
+  - Post-restore comparison: 400 identical task models, 0 differing task
+    models.
+  - Zip size: 1,467,677 bytes.
+  - `python -m src.inspect_submission --zip outputs\submission.zip`: passed,
+    400 ONNX models.
+- Reports written:
+  - `outputs/reports/submission_baseline_vs_current_diff.csv`
+  - `outputs/reports/submission_baseline_vs_current_diff_after_restore.csv`
+
+Important note:
+
+- `outputs/submission.zip` is the current safe submission artifact for online
+  use. The `outputs/onnx` model bank still contains the locally optimized
+  experimental replacements from the 5909 submission; rebuilding from that bank
+  will recreate the lower-online-score variant unless the differing tasks are
+  separately reverted or an ablation-driven whitelist is established.
+
 ## 2026-06-03 - high-cost model bank optimization: task025, task367, task028
 
 - Current validated submission: `outputs/submission.zip`

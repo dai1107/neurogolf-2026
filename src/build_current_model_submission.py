@@ -12,6 +12,7 @@ from typing import Any
 
 from .arc_io import load_all_tasks
 from .blend_archive_submission import evaluate_model
+from .cost_estimator import check_forbidden_ops, estimate_model_cost
 
 
 FIELDS = [
@@ -33,8 +34,11 @@ def build_current_model_submission(
     zip_path: str,
     allow_partial: bool = False,
     timeout_seconds: int = 120,
+    validation_mode: str = "strict",
 ) -> dict[str, Any]:
     """Validate local per-task ONNX models and package only passing models."""
+    if validation_mode not in {"strict", "trusted"}:
+        raise ValueError(f"validation_mode must be 'strict' or 'trusted', got {validation_mode}")
     tasks = load_all_tasks(data_dir)
     data_root = Path(data_dir)
     model_root = Path(model_dir)
@@ -52,7 +56,10 @@ def build_current_model_submission(
     for task_id in tasks:
         source_path = model_root / f"{task_id}.onnx"
         task_path = data_root / f"{task_id}.json"
-        report = evaluate_model(source_path, task_path, timeout_seconds)
+        if validation_mode == "strict":
+            report = evaluate_model(source_path, task_path, timeout_seconds)
+        else:
+            report = evaluate_trusted_model(source_path)
         valid = bool(report.get("valid"))
         destination = validated_root / f"{task_id}.onnx"
         if valid:
@@ -97,9 +104,41 @@ def build_current_model_submission(
         "onnx_file_size_total": total_file_size,
         "report_path": report_path,
         "zip_path": zip_path,
+        "validation_mode": validation_mode,
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return summary
+
+
+def evaluate_trusted_model(model_path: Path) -> dict[str, Any]:
+    """Validate a model for trusted online-baseline packaging.
+
+    This deliberately mirrors the submission-structure gate instead of strict
+    local train validation. It is intended only for reproducing a known online
+    baseline whose models may fail local padding/static-shape heuristics.
+    """
+    if not model_path.is_file():
+        return {"valid": False, "model_path": str(model_path), "failure_reason": "missing_model"}
+
+    report: dict[str, Any] = {"model_path": str(model_path)}
+    try:
+        cost = estimate_model_cost(str(model_path))
+        forbidden = check_forbidden_ops(str(model_path))
+    except Exception as exc:
+        return {**report, "valid": False, "failure_reason": f"trusted_evaluation_exception: {exc}"}
+
+    failure_reasons: list[str] = []
+    if not cost["file_size_ok"]:
+        failure_reasons.append("file_size_exceeds_limit")
+    if not forbidden["passed"]:
+        failure_reasons.append(f"forbidden_ops={forbidden['forbidden_ops_found']}")
+
+    return {
+        **report,
+        **cost,
+        "valid": not failure_reasons,
+        "failure_reason": "; ".join(failure_reasons),
+    }
 
 
 def main() -> None:
@@ -111,6 +150,12 @@ def main() -> None:
     parser.add_argument("--zip", dest="zip_path", default="outputs/submission.zip")
     parser.add_argument("--allow-partial", action="store_true")
     parser.add_argument("--timeout-seconds", type=int, default=120)
+    parser.add_argument(
+        "--validation-mode",
+        choices=["strict", "trusted"],
+        default="strict",
+        help="strict validates train output; trusted only packages a known online-clean model bank",
+    )
     args = parser.parse_args()
     build_current_model_submission(
         data_dir=args.data_dir,
@@ -120,6 +165,7 @@ def main() -> None:
         zip_path=args.zip_path,
         allow_partial=args.allow_partial,
         timeout_seconds=args.timeout_seconds,
+        validation_mode=args.validation_mode,
     )
 
 
