@@ -1,0 +1,2 @@
+task_id,source_model_path,output_model_path,weight_name,rewritten_conv_nodes,removed_initializer_elements,added_initializer_elements,source_cost,output_cost,cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta
+task363,outputs\onnx\task363.onnx,outputs\candidates\task363_sparse_shift_conv\task363_SparseShiftConvRewrite.onnx,wk,2,36100,410,193391,16581,-176810,169035,70478,-98557

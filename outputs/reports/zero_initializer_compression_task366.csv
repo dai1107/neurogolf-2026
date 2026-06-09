@@ -1,0 +1,2 @@
+task_id,source_model_path,output_model_path,source_cost,output_cost,cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta,source_initializer_count,output_initializer_count,zero_initializers_replaced,zero_initializer_elements_replaced
+task366,outputs\onnx\task366.onnx,outputs\candidates\zero_initializer_compressed\task366_ZeroInitializerCompression.onnx,260211,32072,-228139,1256725,1075583,-181142,79,79,8,45671

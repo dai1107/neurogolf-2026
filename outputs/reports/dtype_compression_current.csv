@@ -1,0 +1,14 @@
+task_id,source_model_path,output_model_path,source_cost,output_cost,cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta,source_initializer_count,output_initializer_count,compressed_initializers,compressed_initializer_elements
+task019,outputs\onnx\task019.onnx,outputs\candidates\dtype_compression_current\task019_InitializerDtypeCompression.onnx,16326,3726,-12600,17887,5433,-12454,12,12,2,1800
+task021,outputs\onnx\task021.onnx,outputs\candidates\dtype_compression_current\task021_InitializerDtypeCompression.onnx,16652,4052,-12600,38201,25757,-12444,20,20,2,1800
+task061,outputs\onnx\task061.onnx,outputs\candidates\dtype_compression_current\task061_InitializerDtypeCompression.onnx,17726,4118,-13608,17030,3505,-13525,12,12,1,1944
+task071,outputs\onnx\task071.onnx,outputs\candidates\dtype_compression_current\task071_InitializerDtypeCompression.onnx,8238,1938,-6300,12082,5845,-6237,12,12,1,900
+task076,outputs\onnx\task076.onnx,outputs\candidates\dtype_compression_current\task076_InitializerDtypeCompression.onnx,17538,8074,-9464,36146,26775,-9371,44,44,1,1352
+task088,outputs\onnx\task088.onnx,outputs\candidates\dtype_compression_current\task088_InitializerDtypeCompression.onnx,10824,2760,-8064,14980,7084,-7896,18,18,2,1152
+task123,outputs\onnx\task123.onnx,outputs\candidates\dtype_compression_current\task123_InitializerDtypeCompression.onnx,8497,2197,-6300,8997,2778,-6219,13,13,1,900
+task157,outputs\onnx\task157.onnx,outputs\candidates\dtype_compression_current\task157_InitializerDtypeCompression.onnx,598084,598084,0,427108,427108,0,36,36,0,0
+task233,outputs\onnx\task233.onnx,outputs\candidates\dtype_compression_current\task233_InitializerDtypeCompression.onnx,69210,25206,-44004,264496,222341,-42155,65,65,19,7404
+task284,outputs\onnx\task284.onnx,outputs\candidates\dtype_compression_current\task284_InitializerDtypeCompression.onnx,19017,6417,-12600,30975,18531,-12444,19,19,2,1800
+task301,outputs\onnx\task301.onnx,outputs\candidates\dtype_compression_current\task301_InitializerDtypeCompression.onnx,16567,3967,-12600,19240,6795,-12445,10,10,2,1800
+task366,outputs\onnx\task366.onnx,outputs\candidates\dtype_compression_current\task366_InitializerDtypeCompression.onnx,32072,21272,-10800,1075583,1065146,-10437,79,79,3,2700
+task398,outputs\onnx\task398.onnx,outputs\candidates\dtype_compression_current\task398_InitializerDtypeCompression.onnx,6714,2339,-4375,8682,4370,-4312,26,26,1,625

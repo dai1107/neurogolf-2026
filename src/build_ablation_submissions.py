@@ -6,6 +6,7 @@ import argparse
 import csv
 import json
 import re
+import shutil
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ FIELDS = [
     "task_id",
     "candidate_model_path",
     "candidate_zip_path",
+    "upload_submission_path",
     "base_entry_replaced",
     "inspection_passed",
     "failure_reason",
@@ -72,6 +74,7 @@ def build_ablation_submissions(
     output_dir: str,
     report_path: str,
     task_ids: set[str] | None = None,
+    upload_friendly_folders: bool = False,
 ) -> dict[str, Any]:
     """Create one submission zip per candidate model without changing the base zip."""
     base_path = Path(base_zip)
@@ -85,14 +88,22 @@ def build_ablation_submissions(
     for candidate in candidates:
         task_id = _task_id_from_candidate(candidate)
         output_zip = output_root / f"{candidate.stem}.zip"
+        upload_submission_path = ""
         try:
             _write_single_replacement_zip(base_path, candidate, output_zip)
             inspect_submission(str(output_zip))
+            if upload_friendly_folders:
+                upload_path = output_root / candidate.stem / "submission.zip"
+                upload_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(output_zip, upload_path)
+                inspect_submission(str(upload_path))
+                upload_submission_path = str(upload_path)
             rows.append(
                 {
                     "task_id": task_id,
                     "candidate_model_path": str(candidate),
                     "candidate_zip_path": str(output_zip),
+                    "upload_submission_path": upload_submission_path,
                     "base_entry_replaced": f"{task_id}.onnx",
                     "inspection_passed": True,
                     "failure_reason": "",
@@ -104,6 +115,7 @@ def build_ablation_submissions(
                     "task_id": task_id,
                     "candidate_model_path": str(candidate),
                     "candidate_zip_path": str(output_zip),
+                    "upload_submission_path": upload_submission_path,
                     "base_entry_replaced": f"{task_id}.onnx",
                     "inspection_passed": False,
                     "failure_reason": str(exc),
@@ -122,6 +134,7 @@ def build_ablation_submissions(
         "report_path": report_path,
         "candidate_count": len(candidates),
         "valid_zip_count": sum(1 for row in rows if row["inspection_passed"]),
+        "upload_friendly_folders": upload_friendly_folders,
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return summary
@@ -139,6 +152,7 @@ def main() -> None:
     parser.add_argument("--output-dir", default="outputs/ablation_submissions")
     parser.add_argument("--report", default="outputs/reports/ablation_submission_report.csv")
     parser.add_argument("--task-ids", default="")
+    parser.add_argument("--upload-friendly-folders", action="store_true")
     args = parser.parse_args()
     build_ablation_submissions(
         base_zip=args.base_zip,
@@ -146,6 +160,7 @@ def main() -> None:
         output_dir=args.output_dir,
         report_path=args.report,
         task_ids=_parse_task_ids(args.task_ids),
+        upload_friendly_folders=args.upload_friendly_folders,
     )
 
 

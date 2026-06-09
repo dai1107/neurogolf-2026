@@ -1,0 +1,1 @@
+task_id,table_name,table_shape,table_dtype,total_rows,observed_min,observed_max,observed_unique,table_nbytes,index_consumer,reduction_pct

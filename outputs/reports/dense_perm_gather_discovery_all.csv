@@ -1,0 +1,1 @@
+task_id,model_path,initializer_name,shape,dtype,num_elements,nbytes,one_hot_axis,rank,unique_values,matmul_consumer_count,consumer_nodes,candidate_kind,priority_score

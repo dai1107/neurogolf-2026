@@ -1,0 +1,2 @@
+task_id,table_name,table_shape,table_dtype,total_rows,observed_min,observed_max,observed_unique,table_nbytes,index_consumer,reduction_pct
+task233,combo,3125x5,int64,3125,0,125,2,125000,/Cast_27_output_0,96.0

@@ -143,6 +143,70 @@ def _fill_horizontal_zero_runs_matching_marker_lengths(grid: Grid) -> Grid:
     return output
 
 
+def _line_directions() -> tuple[tuple[int, int], ...]:
+    return ((0, 1), (1, 0), (1, 1), (1, -1))
+
+
+def _line_run_lengths(grid: Grid, marker_color: int = 2) -> set[tuple[int, tuple[int, int]]]:
+    height = len(grid)
+    width = len(grid[0])
+    runs: set[tuple[int, tuple[int, int]]] = set()
+    for delta_row, delta_col in _line_directions():
+        for row in range(height):
+            for col in range(width):
+                prev_row = row - delta_row
+                prev_col = col - delta_col
+                if (
+                    0 <= prev_row < height
+                    and 0 <= prev_col < width
+                    and grid[prev_row][prev_col] == marker_color
+                ):
+                    continue
+                if grid[row][col] != marker_color:
+                    continue
+                length = 0
+                run_row = row
+                run_col = col
+                while (
+                    0 <= run_row < height
+                    and 0 <= run_col < width
+                    and grid[run_row][run_col] == marker_color
+                ):
+                    length += 1
+                    run_row += delta_row
+                    run_col += delta_col
+                if length >= 2:
+                    runs.add((length, (delta_row, delta_col)))
+    return runs
+
+
+def _complete_line_patterns(grid: Grid) -> Grid:
+    """Probe-only completion of blank runs matching observed color-2 line lengths."""
+    output = _copy_grid(grid)
+    observed_runs = _line_run_lengths(grid, marker_color=2)
+    if not observed_runs:
+        return output
+
+    height = len(grid)
+    width = len(grid[0])
+    for length, (delta_row, delta_col) in observed_runs:
+        for row in range(height):
+            for col in range(width):
+                end_row = row + (length - 1) * delta_row
+                end_col = col + (length - 1) * delta_col
+                if not (0 <= end_row < height and 0 <= end_col < width):
+                    continue
+                cells = [
+                    (row + offset * delta_row, col + offset * delta_col)
+                    for offset in range(length)
+                ]
+                values = [grid[cell_row][cell_col] for cell_row, cell_col in cells]
+                if all(value == 0 for value in values):
+                    for cell_row, cell_col in cells:
+                        output[cell_row][cell_col] = 2
+    return output
+
+
 def _dominant_color(grid: Grid) -> int:
     return Counter(color for row in grid for color in row).most_common(1)[0][0]
 
@@ -177,14 +241,18 @@ def _component_cells_excluding_background(panel: Grid, background: int) -> list[
     return _components(panel, colors, diagonal=False)
 
 
-def _copy_marker_matched_source_objects_to_sparse_panel(grid: Grid) -> Grid:
+def _copy_marker_matched_source_objects_to_sparse_panel(
+    grid: Grid,
+    min_target_background_fraction: float = 0.60,
+) -> Grid:
     best_output: Grid | None = None
     best_score = -1
 
     for first, second in _panel_splits_for_output_shape(grid):
         panel_pairs = ((first, second), (second, first))
         for source, target in panel_pairs:
-            if _dominant_fraction(target) < 0.55:
+            # Conservative guard: the target panel must be clearly sparse.
+            if _dominant_fraction(target) < min_target_background_fraction:
                 continue
             target_count = _non_background_count(target)
             if target_count == 0:
@@ -201,6 +269,7 @@ def _copy_marker_matched_source_objects_to_sparse_panel(grid: Grid) -> Grid:
             if not target_marker_colors:
                 continue
 
+            # Multi-source-background guard: try every plausible source background.
             for source_background, source_background_count in Counter(
                 color for row in source for color in row
             ).most_common():
@@ -225,6 +294,8 @@ def _copy_marker_matched_source_objects_to_sparse_panel(grid: Grid) -> Grid:
                     has_body_cell = any(
                         source[row][col] not in target_marker_colors for row, col in component
                     )
+                    # Degenerate marker-only guard: do not copy components that
+                    # contain only marker cells and no object body.
                     if not component_marker_cells or not has_body_cell:
                         continue
 
@@ -286,12 +357,164 @@ def _copy_marker_matched_source_objects_to_sparse_panel(grid: Grid) -> Grid:
                         occupied_cells.add((row, col))
                     covered_markers.update(marker_positions)
 
+                if not covered_markers:
+                    continue
                 score = len(covered_markers) * 1000 - len(occupied_cells)
                 if score > best_score:
                     best_score = score
                     best_output = output
 
     return best_output if best_output is not None else _copy_grid(grid)
+
+
+def _nonzero_components_8(grid: Grid) -> list[list[tuple[int, int]]]:
+    colors = {color for row in grid for color in row if color != 0}
+    if not colors:
+        return []
+    return _components(grid, colors, diagonal=True)
+
+
+def _orientation_object_from_component(
+    grid: Grid,
+    component: list[tuple[int, int]],
+) -> dict[str, object] | None:
+    four_cells = [(row, col) for row, col in component if grid[row][col] == 4]
+    if not four_cells:
+        return None
+
+    top = min(row for row, _ in four_cells)
+    left = min(col for _, col in four_cells)
+    bottom = max(row for row, _ in four_cells)
+    right = max(col for _, col in four_cells)
+    return {
+        "top": top,
+        "left": left,
+        "height": bottom - top + 1,
+        "width": right - left + 1,
+        "shape4": frozenset((row - top, col - left) for row, col in four_cells),
+        "decorations": tuple(
+            sorted(
+                (row - top, col - left, grid[row][col])
+                for row, col in component
+                if grid[row][col] in {1, 2, 3}
+            )
+        ),
+    }
+
+
+def _dihedral_transform(name: str, row: int, col: int, height: int, width: int) -> tuple[int, int]:
+    if name == "id":
+        return row, col
+    if name == "rot90":
+        return col, height - 1 - row
+    if name == "rot180":
+        return height - 1 - row, width - 1 - col
+    if name == "rot270":
+        return width - 1 - col, row
+    if name == "flip_horizontal":
+        return row, width - 1 - col
+    if name == "flip_vertical":
+        return height - 1 - row, col
+    if name == "transpose":
+        return col, row
+    if name == "anti_transpose":
+        return width - 1 - col, height - 1 - row
+    raise ValueError(f"unknown transform: {name}")
+
+
+def _transformed_orientation_template(
+    template: dict[str, object],
+    transform_name: str,
+) -> tuple[frozenset[tuple[int, int]], tuple[tuple[int, int, int], ...]]:
+    height = int(template["height"])
+    width = int(template["width"])
+    transformed_shape = [
+        _dihedral_transform(transform_name, row, col, height, width)
+        for row, col in template["shape4"]  # type: ignore[index]
+    ]
+    min_row = min(row for row, _ in transformed_shape)
+    min_col = min(col for _, col in transformed_shape)
+    normalized_shape = frozenset((row - min_row, col - min_col) for row, col in transformed_shape)
+
+    decorations = []
+    for row, col, color in template["decorations"]:  # type: ignore[index]
+        new_row, new_col = _dihedral_transform(transform_name, row, col, height, width)
+        decorations.append((new_row - min_row, new_col - min_col, color))
+    return normalized_shape, tuple(sorted(decorations))
+
+
+def _complete_orientation_aware_marker_copy(grid: Grid) -> Grid:
+    """Complete sparse marker objects from same-shape decorated color-4 templates."""
+    output = _copy_grid(grid)
+    objects = [
+        obj
+        for obj in (
+            _orientation_object_from_component(grid, component)
+            for component in _nonzero_components_8(grid)
+        )
+        if obj is not None
+    ]
+    templates = [
+        obj
+        for obj in objects
+        if len(obj["decorations"]) >= 2  # type: ignore[arg-type]
+        and any(color != 2 for _, _, color in obj["decorations"])  # type: ignore[index]
+    ]
+
+    transform_names = (
+        "id",
+        "rot90",
+        "rot180",
+        "rot270",
+        "flip_horizontal",
+        "flip_vertical",
+        "transpose",
+        "anti_transpose",
+    )
+    for target in objects:
+        existing = {
+            (row, col): color
+            for row, col, color in target["decorations"]  # type: ignore[index]
+        }
+        if not existing:
+            continue
+
+        matches: list[tuple[int, int, str, tuple[tuple[int, int, int], ...]]] = []
+        for template in templates:
+            for transform_name in transform_names:
+                shape, decorations = _transformed_orientation_template(template, transform_name)
+                if shape != target["shape4"]:
+                    continue
+                decoration_map = {(row, col): color for row, col, color in decorations}
+                if not all(decoration_map.get(position) == color for position, color in existing.items()):
+                    continue
+
+                valid = True
+                added = 0
+                for row, col, color in decorations:
+                    grid_row = int(target["top"]) + row
+                    grid_col = int(target["left"]) + col
+                    if not (0 <= grid_row < len(grid) and 0 <= grid_col < len(grid[0])):
+                        valid = False
+                        break
+                    if output[grid_row][grid_col] not in {0, color}:
+                        valid = False
+                        break
+                    if grid[grid_row][grid_col] == 0:
+                        added += 1
+                if valid and added:
+                    matches.append((added, len(decorations), transform_name, decorations))
+
+        if not matches:
+            continue
+        _, _, _, best_decorations = sorted(matches, key=lambda item: (-item[0], -item[1], item[2]))[0]
+        for row, col, color in best_decorations:
+            grid_row = int(target["top"]) + row
+            grid_col = int(target["left"]) + col
+            if output[grid_row][grid_col] == 0:
+                output[grid_row][grid_col] = color
+
+    return output
 
 
 PROBES: dict[str, tuple[str, Callable[[Grid], Grid], str, str]] = {
@@ -331,15 +554,21 @@ PROBES: dict[str, tuple[str, Callable[[Grid], Grid], str, str]] = {
         "maybe",
         "high",
     ),
-    "horizontal_zero_runs_by_marker_length": (
-        "Fill horizontal 0 runs whose length equals any horizontal color-2 run length.",
-        _fill_horizontal_zero_runs_matching_marker_lengths,
-        "yes",
+    "line_pattern_completion": (
+        "Probe-only completion of horizontal, vertical, and diagonal 0-runs matching observed color-2 line lengths.",
+        _complete_line_patterns,
+        "no",
+        "probe",
+    ),
+    "two_panel_marker_object_transfer_conservative": (
+        "Split equal panels; require target background dominance, try multiple source backgrounds, and reject marker-only source components before copying matched source objects.",
+        _copy_marker_matched_source_objects_to_sparse_panel,
+        "hard",
         "medium",
     ),
-    "two_panel_marker_object_transfer": (
-        "Split the input into two equal panels; copy source-panel objects onto the sparse marker panel when marker-color layouts match.",
-        _copy_marker_matched_source_objects_to_sparse_panel,
+    "orientation_aware_marker_copy": (
+        "Complete sparse marker objects by copying decorations from same-shape 8-connected color-4 templates under a dihedral transform.",
+        _complete_orientation_aware_marker_copy,
         "hard",
         "high",
     ),

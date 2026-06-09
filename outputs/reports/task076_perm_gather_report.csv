@@ -1,0 +1,2 @@
+source_model_path,output_model_path,source_cost,output_cost,cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta,removed_nodes,removed_initializers,added_initializers,failure_reason
+outputs\onnx\task076.onnx,outputs\candidates\task076_perm_gather\task076_Task076PermGatherExact.onnx,1147810,17538,-1130272,948872,36146,-912726,9,1,1,

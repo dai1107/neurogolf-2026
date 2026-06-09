@@ -727,3 +727,18 @@ task_id
 任何代码、规则、模型、日志、提交文件，都必须服务于这个目标。
 
 补充：每轮结束前更新 PROGRESS.md 和 EXPERIMENT_LOG.md
+
+## Sandbox fallback note
+
+Observed on 2026-06-07: Windows sandbox setup may fail before a command starts
+with `windows sandbox: setup refresh failed with status exit code: 1`.
+Detailed Codex logs showed the setup helper was trying to update ACL/write
+access for `C:\Windows\Temp`, but this machine returned access denied. User
+environment variables `TEMP` and `TMP` were changed to
+`C:\Users\dell\.codex\tmp`; restart Codex/terminal for new processes to inherit
+that value.
+
+If the same setup failure appears again, retry the same command with
+`sandbox_permissions: "require_escalated"` and the narrowest reasonable
+`prefix_rule`. Do not stop to ask in chat first. Never use broad or destructive
+fallback prefixes, and never bypass approval for destructive operations.

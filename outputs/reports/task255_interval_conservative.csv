@@ -1,0 +1,14 @@
+value_name,value_kind,old_shape,new_shape,old_num_elements,new_num_elements,action
+I0,initializer,452,447,452,447,sliced
+I1,initializer,452,447,452,447,sliced
+ILEN,initializer,452,447,452,447,sliced
+MEMB,initializer,452x30,447x30,13560,13410,sliced
+AT0,initializer,452,447,452,447,sliced
+AT1,initializer,452,447,452,447,sliced
+rng,initializer,452,447,452,447,renumbered
+up_idx,initializer,452,447,452,447,remapped
+dn_idx,initializer,452,447,452,447,remapped
+/Constant_25_output_0,constant_node,scalar,scalar,1,1,row_count_scalar_updated
+/Constant_26_output_0,constant_node,scalar,scalar,1,1,row_count_scalar_updated
+/Constant_35_output_0,constant_node,scalar,scalar,1,1,row_count_scalar_updated
+/Constant_36_output_0,constant_node,scalar,scalar,1,1,row_count_scalar_updated

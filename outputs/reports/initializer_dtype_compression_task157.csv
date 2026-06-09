@@ -1,0 +1,2 @@
+task_id,source_model_path,output_model_path,source_cost,output_cost,cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta,source_initializer_count,output_initializer_count,compressed_initializers,compressed_initializer_elements
+task157,outputs\onnx\task157.onnx,outputs\candidates\initializer_dtype_compressed\task157_InitializerDtypeCompression.onnx,1008484,598084,-410400,836920,427108,-409812,36,36,6,200310

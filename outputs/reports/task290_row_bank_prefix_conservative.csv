@@ -1,0 +1,9 @@
+bank_id,value_name,old_shape,new_shape,old_num_elements,new_num_elements,prefix,action
+0,row_bank_0,169,159,169,159,159,prefix_sliced
+0,col_bank_0,169,159,169,159,159,prefix_sliced
+1,row_bank_1,144,130,144,130,130,prefix_sliced
+1,col_bank_1,144,130,144,130,130,prefix_sliced
+2,row_bank_2,121,111,121,111,111,prefix_sliced
+2,col_bank_2,121,111,121,111,111,prefix_sliced
+3,row_bank_3,100,91,100,91,91,prefix_sliced
+3,col_bank_3,100,91,100,91,91,prefix_sliced

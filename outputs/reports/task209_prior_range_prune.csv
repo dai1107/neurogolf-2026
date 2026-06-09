@@ -1,0 +1,3 @@
+task_id,mode,source_model_path,output_model_path,row_start,row_end,col_start,col_end,updated_initializers,source_cost,output_cost,cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta
+task209,conservative,outputs\onnx\task209.onnx,outputs\candidates\task209_prior_range_prune\task209_PriorRangeConservative.onnx,5,18,5,21,6,144226,121564,-22662,349736,331998,-17738
+task209,observed,outputs\onnx\task209.onnx,outputs\candidates\task209_prior_range_prune\task209_PriorRangeObserved.onnx,6,17,6,21,6,144226,116524,-27702,349736,327966,-21770

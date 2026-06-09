@@ -1,0 +1,4 @@
+task_id,mode,candidate_path,num_rules,num_source_patterns,num_target_patterns,train_pass,test_pass,arc_gen_pass,formula,risk_level,failure_reason
+task076,conservative,outputs\candidates\task076_template_matcher\task076_Task076TemplateConservative.onnx,542,266,542,3/3,1/1,262/262,Compile observed color-4 orientation templates into finite static shape/decor pattern matchers and copy missing decorations.,medium-high,
+task076,medium,outputs\candidates\task076_template_matcher\task076_Task076TemplateMedium.onnx,542,266,542,3/3,1/1,262/262,Compile observed color-4 orientation templates into finite static shape/decor pattern matchers and copy missing decorations.,medium-high,
+task076,observed,outputs\candidates\task076_template_matcher\task076_Task076TemplateObserved.onnx,542,266,542,3/3,1/1,262/262,Compile observed color-4 orientation templates into finite static shape/decor pattern matchers and copy missing decorations.,medium-high,

@@ -1,0 +1,5 @@
+task_id,rule_name,mode,source_model,candidate_model_path,generated,evaluate_valid,labelled_passed,package_eligible,failure_reason,estimated_cost,file_size_bytes,labelled_report_path
+task157,PlacementConservative,conservative,outputs\candidates\online_safe_reverts\head_extract\outputs\onnx\task157.onnx,outputs\candidates\enumeration_table_prune\task157_PlacementConservative.onnx,True,True,True,True,,809080,677188,outputs\reports\task157_PlacementConservative_labelled_validation.csv
+task157,PlacementMedium,medium,outputs\candidates\online_safe_reverts\head_extract\outputs\onnx\task157.onnx,outputs\candidates\enumeration_table_prune\task157_PlacementMedium.onnx,True,True,True,False,,341512,302644,outputs\reports\task157_PlacementMedium_labelled_validation.csv
+task157,PlacementObserved,observed,outputs\candidates\online_safe_reverts\head_extract\outputs\onnx\task157.onnx,outputs\candidates\enumeration_table_prune\task157_PlacementObserved.onnx,True,True,True,False,,196352,186364,outputs\reports\task157_PlacementObserved_labelled_validation.csv
+task255,supported_prune_builder,,,,False,False,False,False,unexpected task255 row count: 452,,,

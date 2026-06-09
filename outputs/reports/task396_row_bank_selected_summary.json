@@ -1,0 +1,178 @@
+{
+  "model_path": "outputs\\onnx\\task396.onnx",
+  "task_path": "task\\task396.json",
+  "report_path": "outputs\\reports\\task396_row_bank_selected_observed.csv",
+  "summary_path": "outputs\\reports\\task396_row_bank_selected_summary.json",
+  "labelled_cases": 266,
+  "bank_count": 24,
+  "banks": {
+    "0": {
+      "row_count": 225,
+      "observed_count": 34,
+      "min_observed": 0,
+      "max_observed": 206,
+      "observed_prefix": 207
+    },
+    "1": {
+      "row_count": 210,
+      "observed_count": 24,
+      "min_observed": 0,
+      "max_observed": 184,
+      "observed_prefix": 185
+    },
+    "2": {
+      "row_count": 195,
+      "observed_count": 20,
+      "min_observed": 0,
+      "max_observed": 190,
+      "observed_prefix": 191
+    },
+    "3": {
+      "row_count": 180,
+      "observed_count": 7,
+      "min_observed": 0,
+      "max_observed": 149,
+      "observed_prefix": 150
+    },
+    "4": {
+      "row_count": 165,
+      "observed_count": 5,
+      "min_observed": 0,
+      "max_observed": 111,
+      "observed_prefix": 112
+    },
+    "5": {
+      "row_count": 210,
+      "observed_count": 30,
+      "min_observed": 0,
+      "max_observed": 187,
+      "observed_prefix": 188
+    },
+    "6": {
+      "row_count": 196,
+      "observed_count": 24,
+      "min_observed": 0,
+      "max_observed": 164,
+      "observed_prefix": 165
+    },
+    "7": {
+      "row_count": 182,
+      "observed_count": 19,
+      "min_observed": 0,
+      "max_observed": 153,
+      "observed_prefix": 154
+    },
+    "8": {
+      "row_count": 168,
+      "observed_count": 19,
+      "min_observed": 0,
+      "max_observed": 124,
+      "observed_prefix": 125
+    },
+    "9": {
+      "row_count": 154,
+      "observed_count": 15,
+      "min_observed": 0,
+      "max_observed": 117,
+      "observed_prefix": 118
+    },
+    "10": {
+      "row_count": 182,
+      "observed_count": 19,
+      "min_observed": 0,
+      "max_observed": 157,
+      "observed_prefix": 158
+    },
+    "11": {
+      "row_count": 169,
+      "observed_count": 23,
+      "min_observed": 0,
+      "max_observed": 164,
+      "observed_prefix": 165
+    },
+    "12": {
+      "row_count": 156,
+      "observed_count": 25,
+      "min_observed": 0,
+      "max_observed": 134,
+      "observed_prefix": 135
+    },
+    "13": {
+      "row_count": 143,
+      "observed_count": 20,
+      "min_observed": 0,
+      "max_observed": 124,
+      "observed_prefix": 125
+    },
+    "14": {
+      "row_count": 180,
+      "observed_count": 10,
+      "min_observed": 0,
+      "max_observed": 128,
+      "observed_prefix": 129
+    },
+    "15": {
+      "row_count": 168,
+      "observed_count": 17,
+      "min_observed": 0,
+      "max_observed": 84,
+      "observed_prefix": 85
+    },
+    "16": {
+      "row_count": 156,
+      "observed_count": 13,
+      "min_observed": 0,
+      "max_observed": 107,
+      "observed_prefix": 108
+    },
+    "17": {
+      "row_count": 144,
+      "observed_count": 18,
+      "min_observed": 0,
+      "max_observed": 141,
+      "observed_prefix": 142
+    },
+    "18": {
+      "row_count": 132,
+      "observed_count": 18,
+      "min_observed": 0,
+      "max_observed": 127,
+      "observed_prefix": 128
+    },
+    "19": {
+      "row_count": 165,
+      "observed_count": 2,
+      "min_observed": 0,
+      "max_observed": 11,
+      "observed_prefix": 12
+    },
+    "20": {
+      "row_count": 154,
+      "observed_count": 16,
+      "min_observed": 0,
+      "max_observed": 99,
+      "observed_prefix": 100
+    },
+    "21": {
+      "row_count": 143,
+      "observed_count": 16,
+      "min_observed": 0,
+      "max_observed": 129,
+      "observed_prefix": 130
+    },
+    "22": {
+      "row_count": 132,
+      "observed_count": 16,
+      "min_observed": 0,
+      "max_observed": 101,
+      "observed_prefix": 102
+    },
+    "23": {
+      "row_count": 121,
+      "observed_count": 13,
+      "min_observed": 0,
+      "max_observed": 117,
+      "observed_prefix": 118
+    }
+  }
+}

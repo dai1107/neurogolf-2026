@@ -1,0 +1,38 @@
+{
+  "model_path": "outputs\\onnx\\task290.onnx",
+  "task_path": "task\\task290.json",
+  "report_path": "outputs\\reports\\task290_row_bank_selected_observed.csv",
+  "summary_path": "outputs\\reports\\task290_row_bank_selected_summary.json",
+  "labelled_cases": 266,
+  "bank_count": 4,
+  "banks": {
+    "0": {
+      "row_count": 169,
+      "observed_count": 69,
+      "min_observed": 14,
+      "max_observed": 150,
+      "observed_prefix": 151
+    },
+    "1": {
+      "row_count": 144,
+      "observed_count": 61,
+      "min_observed": 0,
+      "max_observed": 116,
+      "observed_prefix": 117
+    },
+    "2": {
+      "row_count": 121,
+      "observed_count": 49,
+      "min_observed": 0,
+      "max_observed": 102,
+      "observed_prefix": 103
+    },
+    "3": {
+      "row_count": 100,
+      "observed_count": 34,
+      "min_observed": 0,
+      "max_observed": 82,
+      "observed_prefix": 83
+    }
+  }
+}
