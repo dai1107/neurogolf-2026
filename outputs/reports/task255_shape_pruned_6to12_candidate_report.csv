@@ -1,0 +1,2 @@
+task_id,lane,source_model_path,output_model_path,source_estimated_cost,output_estimated_cost,estimated_cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta,source_initializer_bytes,output_initializer_bytes,initializer_bytes_delta,candidate_valid,failure_reason
+task255,overrides,outputs\reference_6348_56_stack\overrides\task255.onnx,outputs\candidates\task255_override_shape_prune\task255_ShapePruned6To12.onnx,,,0,68816,42685,-26131,,,0,True,

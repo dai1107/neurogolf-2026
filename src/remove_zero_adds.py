@@ -46,6 +46,37 @@ def _is_all_ones(arr: np.ndarray) -> bool:
     return bool(np.all(arr == 1.0))
 
 
+def _shape_tuple(value_info: onnx.ValueInfoProto) -> tuple[int, ...] | None:
+    if not value_info.type.HasField("tensor_type"):
+        return None
+    tensor_type = value_info.type.tensor_type
+    if not tensor_type.HasField("shape"):
+        return None
+    dims: list[int] = []
+    for dim in tensor_type.shape.dim:
+        if not dim.HasField("dim_value") or dim.dim_value <= 0:
+            return None
+        dims.append(int(dim.dim_value))
+    return tuple(dims)
+
+
+def _static_shapes(model: onnx.ModelProto) -> dict[str, tuple[int, ...]]:
+    """Infer known static shapes for values and initializers."""
+    try:
+        graph = onnx.shape_inference.infer_shapes(model).graph
+    except Exception:
+        graph = model.graph
+
+    shapes: dict[str, tuple[int, ...]] = {}
+    for value_info in list(graph.input) + list(graph.value_info) + list(graph.output):
+        shape = _shape_tuple(value_info)
+        if shape is not None:
+            shapes[value_info.name] = shape
+    for initializer in graph.initializer:
+        shapes[initializer.name] = tuple(int(dim) for dim in initializer.dims)
+    return shapes
+
+
 def _remove_identity_ops(model: onnx.ModelProto) -> tuple[int, int]:
     """Remove Add(0,X), Mul(1,X), Sub(X,0) identity ops.
 
@@ -57,43 +88,52 @@ def _remove_identity_ops(model: onnx.ModelProto) -> tuple[int, int]:
 
     zero_init_names = {name for name, arr in init_map.items() if _is_all_zero(arr)}
     ones_init_names = {name for name, arr in init_map.items() if _is_all_ones(arr)}
+    graph_output_names = {output.name for output in model.graph.output}
+    shapes = _static_shapes(model)
 
-    remove_nodes: set[str] = set()
+    remove_node_indices: set[int] = set()
     rewires: dict[str, str] = {}
 
-    for node in model.graph.node:
+    def can_rewire(output_name: str, passthrough_name: str) -> bool:
+        # Add/Mul/Sub identity constants can still broadcast the passthrough
+        # value to a different rank/shape. Only remove when static shapes match.
+        return shapes.get(output_name) is not None and shapes.get(output_name) == shapes.get(passthrough_name)
+
+    for node_index, node in enumerate(model.graph.node):
         if len(node.input) < 2:
+            continue
+        if any(output_name in graph_output_names for output_name in node.output):
             continue
         inp0, inp1 = node.input[0], node.input[1]
 
         if node.op_type == "Add":
             # Add(0, X) = X or Add(X, 0) = X
-            if inp0 in zero_init_names:
-                remove_nodes.add(node.name)
+            if inp0 in zero_init_names and can_rewire(node.output[0], inp1):
+                remove_node_indices.add(node_index)
                 rewires[node.output[0]] = inp1
-            elif inp1 in zero_init_names:
-                remove_nodes.add(node.name)
+            elif inp1 in zero_init_names and can_rewire(node.output[0], inp0):
+                remove_node_indices.add(node_index)
                 rewires[node.output[0]] = inp0
 
         elif node.op_type == "Mul":
             # Mul(1, X) = X or Mul(X, 1) = X
-            if inp0 in ones_init_names:
-                remove_nodes.add(node.name)
+            if inp0 in ones_init_names and can_rewire(node.output[0], inp1):
+                remove_node_indices.add(node_index)
                 rewires[node.output[0]] = inp1
-            elif inp1 in ones_init_names:
-                remove_nodes.add(node.name)
+            elif inp1 in ones_init_names and can_rewire(node.output[0], inp0):
+                remove_node_indices.add(node_index)
                 rewires[node.output[0]] = inp0
 
         elif node.op_type == "Sub":
             # Sub(X, 0) = X (but NOT Sub(0, X))
-            if inp1 in zero_init_names:
-                remove_nodes.add(node.name)
+            if inp1 in zero_init_names and can_rewire(node.output[0], inp0):
+                remove_node_indices.add(node_index)
                 rewires[node.output[0]] = inp0
 
-    if not remove_nodes:
+    if not remove_node_indices:
         return 0, 0
 
-    new_nodes = [n for n in model.graph.node if n.name not in remove_nodes]
+    new_nodes = [node for node_index, node in enumerate(model.graph.node) if node_index not in remove_node_indices]
 
     for node in new_nodes:
         for i, inp in enumerate(node.input):
@@ -119,7 +159,7 @@ def _remove_identity_ops(model: onnx.ModelProto) -> tuple[int, int]:
     del model.graph.initializer[:]
     model.graph.initializer.extend(kept_inits)
 
-    return len(remove_nodes), removed_inits
+    return len(remove_node_indices), removed_inits
 
 
 def optimize_model(

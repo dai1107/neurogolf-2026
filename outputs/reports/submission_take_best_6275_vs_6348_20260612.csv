@@ -1,0 +1,3 @@
+label,zip_path,known_online_score,layout,num_models,num_task_ids,zip_size_bytes,selected,failure_reason
+ref6275_09,outputs\submissions\6275_normalized_submission.zip,6275.09,flat,400,400,723414,False,
+neurogolf_6348_56,6348.56submission.zip,6348.56,hybrid_stack,800,400,2102542,True,

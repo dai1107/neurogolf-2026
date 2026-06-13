@@ -1,0 +1,266 @@
+split,case_index,passed,num_mismatched_cells,zero_confidence_cells,nonzero_padding_cells,first_mismatch
+train,0,True,0,0,0,
+train,1,True,0,0,0,
+train,2,True,0,0,0,
+test,0,False,443,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,0,True,0,0,0,
+arc-gen,1,True,0,0,0,
+arc-gen,2,True,0,0,0,
+arc-gen,3,True,0,0,0,
+arc-gen,4,True,0,0,0,
+arc-gen,5,False,434,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,6,False,416,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,7,True,0,0,0,
+arc-gen,8,False,386,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,9,True,0,0,0,
+arc-gen,10,True,0,0,0,
+arc-gen,11,False,377,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,12,False,413,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,13,False,383,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,14,False,415,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,15,False,433,0,0,"{""actual"": 3, ""col"": 6, ""expected"": 0, ""row"": 0}"
+arc-gen,16,False,410,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,17,True,0,0,0,
+arc-gen,18,False,416,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,19,True,0,0,0,
+arc-gen,20,True,0,0,0,
+arc-gen,21,True,0,0,0,
+arc-gen,22,True,0,0,0,
+arc-gen,23,False,376,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,24,False,394,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,25,False,413,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,26,False,416,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,27,False,420,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,28,False,391,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,29,False,409,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,30,False,396,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,31,True,0,0,0,
+arc-gen,32,True,0,0,0,
+arc-gen,33,False,381,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,34,True,0,0,0,
+arc-gen,35,False,379,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,36,True,0,0,0,
+arc-gen,37,False,401,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,38,False,422,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,39,True,0,0,0,
+arc-gen,40,True,0,0,0,
+arc-gen,41,False,327,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,42,False,405,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,43,True,0,0,0,
+arc-gen,44,True,0,0,0,
+arc-gen,45,True,0,0,0,
+arc-gen,46,True,0,0,0,
+arc-gen,47,True,0,0,0,
+arc-gen,48,True,0,0,0,
+arc-gen,49,False,434,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,50,True,0,0,0,
+arc-gen,51,False,331,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,52,True,0,0,0,
+arc-gen,53,False,393,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,54,False,394,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,55,False,364,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,56,True,0,0,0,
+arc-gen,57,True,0,0,0,
+arc-gen,58,True,0,0,0,
+arc-gen,59,True,0,0,0,
+arc-gen,60,True,0,0,0,
+arc-gen,61,False,392,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,62,False,303,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,63,False,401,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,64,False,409,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,65,False,354,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,66,False,347,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,67,True,0,0,0,
+arc-gen,68,False,406,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,69,True,0,0,0,
+arc-gen,70,True,0,0,0,
+arc-gen,71,False,386,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,72,True,0,0,0,
+arc-gen,73,True,0,0,0,
+arc-gen,74,False,287,0,0,"{""actual"": 3, ""col"": 6, ""expected"": 0, ""row"": 0}"
+arc-gen,75,True,0,0,0,
+arc-gen,76,False,361,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,77,False,361,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,78,True,0,0,0,
+arc-gen,79,False,326,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,80,False,375,0,0,"{""actual"": 3, ""col"": 6, ""expected"": 0, ""row"": 0}"
+arc-gen,81,True,0,0,0,
+arc-gen,82,True,0,0,0,
+arc-gen,83,False,382,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,84,False,394,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,85,False,364,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,86,False,324,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,87,False,391,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,88,False,400,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,89,True,0,0,0,
+arc-gen,90,False,367,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,91,True,0,0,0,
+arc-gen,92,False,400,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,93,False,392,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,94,True,0,0,0,
+arc-gen,95,True,0,0,0,
+arc-gen,96,True,0,0,0,
+arc-gen,97,False,422,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,98,True,0,0,0,
+arc-gen,99,True,0,0,0,
+arc-gen,100,False,390,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,101,False,398,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,102,False,441,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,103,False,366,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,104,True,0,0,0,
+arc-gen,105,True,0,0,0,
+arc-gen,106,True,0,0,0,
+arc-gen,107,True,0,0,0,
+arc-gen,108,False,419,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,109,True,0,0,0,
+arc-gen,110,True,0,0,0,
+arc-gen,111,True,0,0,0,
+arc-gen,112,False,400,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,113,False,421,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,114,False,394,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,115,True,0,0,0,
+arc-gen,116,False,354,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,117,False,409,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,118,True,0,0,0,
+arc-gen,119,True,0,0,0,
+arc-gen,120,True,0,0,0,
+arc-gen,121,False,340,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,122,False,318,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,123,True,0,0,0,
+arc-gen,124,True,0,0,0,
+arc-gen,125,False,286,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,126,False,350,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,127,True,0,0,0,
+arc-gen,128,False,380,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,129,False,392,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,130,True,0,0,0,
+arc-gen,131,False,378,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,132,False,405,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,133,True,0,0,0,
+arc-gen,134,True,0,0,0,
+arc-gen,135,False,382,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,136,True,0,0,0,
+arc-gen,137,False,384,0,0,"{""actual"": 3, ""col"": 4, ""expected"": 0, ""row"": 0}"
+arc-gen,138,False,340,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,139,False,389,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,140,True,0,0,0,
+arc-gen,141,False,432,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,142,False,428,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,143,False,337,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,144,False,420,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,145,True,0,0,0,
+arc-gen,146,True,0,0,0,
+arc-gen,147,True,0,0,0,
+arc-gen,148,False,355,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,149,False,405,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,150,True,0,0,0,
+arc-gen,151,False,293,0,0,"{""actual"": 3, ""col"": 4, ""expected"": 0, ""row"": 0}"
+arc-gen,152,False,362,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,153,False,409,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,154,False,354,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,155,False,437,0,0,"{""actual"": 3, ""col"": 8, ""expected"": 0, ""row"": 0}"
+arc-gen,156,True,0,0,0,
+arc-gen,157,True,0,0,0,
+arc-gen,158,False,396,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,159,True,0,0,0,
+arc-gen,160,False,356,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,161,False,310,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,162,False,384,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,163,False,405,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,164,True,0,0,0,
+arc-gen,165,True,0,0,0,
+arc-gen,166,False,318,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,167,False,336,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,168,True,0,0,0,
+arc-gen,169,False,398,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,170,False,386,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,171,False,368,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,172,True,0,0,0,
+arc-gen,173,True,0,0,0,
+arc-gen,174,True,0,0,0,
+arc-gen,175,False,385,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,176,True,0,0,0,
+arc-gen,177,False,374,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,178,True,0,0,0,
+arc-gen,179,False,352,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,180,False,294,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,181,True,0,0,0,
+arc-gen,182,False,395,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,183,True,0,0,0,
+arc-gen,184,True,0,0,0,
+arc-gen,185,True,0,0,0,
+arc-gen,186,False,297,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,187,True,0,0,0,
+arc-gen,188,False,390,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,189,True,0,0,0,
+arc-gen,190,True,0,0,0,
+arc-gen,191,True,0,0,0,
+arc-gen,192,True,0,0,0,
+arc-gen,193,True,0,0,0,
+arc-gen,194,False,394,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,195,True,0,0,0,
+arc-gen,196,False,382,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,197,True,0,0,0,
+arc-gen,198,True,0,0,0,
+arc-gen,199,True,0,0,0,
+arc-gen,200,False,355,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,201,False,417,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,202,True,0,0,0,
+arc-gen,203,True,0,0,0,
+arc-gen,204,False,326,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,205,True,0,0,0,
+arc-gen,206,False,319,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,207,False,384,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,208,True,0,0,0,
+arc-gen,209,True,0,0,0,
+arc-gen,210,False,426,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,211,True,0,0,0,
+arc-gen,212,True,0,0,0,
+arc-gen,213,False,322,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,214,False,383,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,215,False,366,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,216,False,338,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,217,True,0,0,0,
+arc-gen,218,False,361,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,219,False,351,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,220,True,0,0,0,
+arc-gen,221,True,0,0,0,
+arc-gen,222,True,0,0,0,
+arc-gen,223,True,0,0,0,
+arc-gen,224,True,0,0,0,
+arc-gen,225,False,404,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,226,False,380,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,227,False,344,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,228,True,0,0,0,
+arc-gen,229,True,0,0,0,
+arc-gen,230,False,363,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,231,False,395,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,232,True,0,0,0,
+arc-gen,233,False,329,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,234,True,0,0,0,
+arc-gen,235,False,342,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,236,True,0,0,0,
+arc-gen,237,False,375,0,0,"{""actual"": 3, ""col"": 2, ""expected"": 0, ""row"": 0}"
+arc-gen,238,False,360,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,239,False,337,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,240,False,365,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,241,False,389,0,0,"{""actual"": 3, ""col"": 3, ""expected"": 0, ""row"": 0}"
+arc-gen,242,False,373,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,243,False,420,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,244,True,0,0,0,
+arc-gen,245,False,373,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,246,True,0,0,0,
+arc-gen,247,True,0,0,0,
+arc-gen,248,False,332,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"
+arc-gen,249,True,0,0,0,
+arc-gen,250,False,422,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,251,False,349,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,252,True,0,0,0,
+arc-gen,253,True,0,0,0,
+arc-gen,254,True,0,0,0,
+arc-gen,255,True,0,0,0,
+arc-gen,256,True,0,0,0,
+arc-gen,257,True,0,0,0,
+arc-gen,258,False,417,0,0,"{""actual"": 3, ""col"": 1, ""expected"": 0, ""row"": 0}"
+arc-gen,259,True,0,0,0,
+arc-gen,260,False,359,0,0,"{""actual"": 3, ""col"": 0, ""expected"": 0, ""row"": 0}"

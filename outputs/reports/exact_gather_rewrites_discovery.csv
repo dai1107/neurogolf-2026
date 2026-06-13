@@ -1,24 +1,95 @@
 task_id,model_path,initializer_name,shape,dtype,num_elements,nbytes,pattern,one_hot_axis,row_count,col_count,nonzero_per_row_max,nonzero_per_row_min,row_uniformity,unique_values_count,consumer_ops,downstream_ops,priority_score,rewrite_suggestion
-task157,outputs\onnx\task157.onnx,plac_idx_963_compact,1305x150,uint16,195750,391500,int_index_table,-1,1305,150,150,150,1.0000,680,Cast,Cast;Gather;Reshape,195750,int16 more canonical (from uint16)
+task133,outputs\onnx\task133.onnx,anchor_vector_bank,8100x1x10x1x1,float32,81000,324000,binary_float_table,-1,81000,1,1,1,1.0000,2,Gather,Gather;Mul;Reshape,8100000,SparseGather: collect nonzero col indices as int index table
+task363,outputs\onnx\task363.onnx,wk,100x1x19x19,float32,36100,144400,binary_float_table,-1,1900,19,1,1,1.0000,2,Conv,Add;Conv;Mul;ReduceMax;ReduceSum;Sub,3610000,SparseGather: collect nonzero col indices as int index table
+task157,outputs\onnx\task157.onnx,plac_idx_963,1044x150,int32,156600,626400,int_index_table,-1,1044,150,150,150,1.0000,544,Gather,Gather;Mul;ReduceSum;Reshape,313200,"uint16 (from int32, range [15,603])"
+task133,outputs\onnx\task133.onnx,patch_ends_bank,8100x4,int64,32400,259200,int_index_table,-1,8100,4,4,4,1.0000,33,Gather,Gather;Reshape;Slice,129600,"uint8 (from int64, range [1,35])"
+task133,outputs\onnx\task133.onnx,patch_starts_bank,8100x4,int64,32400,259200,int_index_table,-1,8100,4,2,0,0.8687,30,Gather,Gather;Reshape;Slice,129600,"uint8 (from int64, range [0,29])"
+task233,outputs\onnx\task233.onnx,combo,3125x5,int64,15625,125000,int_index_table,-1,3125,5,5,0,0.7764,5,Gather,Gather;Slice,62500,"uint8 (from int64, range [0,4])"
+task133,outputs\onnx\task133.onnx,non_anchor_vector_bank,8100x1x10x1x1,float32,81000,324000,binary_float_table,-1,81000,1,8,8,1.0000,2,Gather,Gather;Mul;Reshape,40500,"RowCollapse: uniform row pattern, dedup rows"
+task009,outputs\onnx\task009.onnx,v0,900x4,int64,3600,28800,int_index_table,-1,900,4,3,1,0.8485,16,GatherND,GatherND;MatMul;Reshape;Transpose,14400,"uint8 (from int64, range [0,27])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3047,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,5,Gather,Expand;Gather;Reshape,12500,"uint8 (from int64, range [0,4])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3056,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,5,Gather,Expand;Gather;Reshape,12500,"uint8 (from int64, range [0,4])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3061,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,5,Gather,Expand;Gather;Reshape,12500,"uint8 (from int64, range [0,4])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3066,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,5,Gather,Expand;Gather;Reshape,12500,"uint8 (from int64, range [0,4])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3071,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,5,Gather,Expand;Gather;Reshape,12500,"uint8 (from int64, range [0,4])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3079,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3083,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3087,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3091,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3095,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3099,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3103,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3107,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3111,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task233,outputs\onnx\task233.onnx,onnx::Gather_3115,3125,int64,3125,25000,int_index_table,-1,1,3125,0,0,0.0000,25,Gather,Cast;Equal;Gather,12500,"uint8 (from int64, range [0,24])"
+task366,outputs\onnx\task366.onnx,/Constant_721_output_0,1x10x29x59,float32,17110,68440,binary_float_table,-1,290,59,0,0,1.0000,1,Concat,Concat;Conv;Reshape,8555,"RowCollapse: uniform row pattern, dedup rows"
 task061,outputs\onnx\task061.onnx,label_bank,6x18x18,int64,1944,15552,int_index_table,-1,108,18,324,324,1.0000,9,Gather,Gather;OneHot;Pad,7776,"uint8 (from int64, range [1,9])"
-task233,outputs\onnx\task233.onnx,combo,305x5,int64,1525,12200,int_index_table,-1,305,5,5,0,0.6553,5,Gather,Gather;Slice,6100,"uint8 (from int64, range [0,4])"
 task076,outputs\onnx\task076.onnx,PermGatherIdx,8x169,int64,1352,10816,int_index_table,-1,8,169,168,168,1.0000,169,Gather,Cast;Gather;Greater,5408,"uint8 (from int64, range [0,168])"
+task028,outputs\onnx\task028.onnx,bg,1x10x30x30,float32,9000,36000,binary_float_table,-1,300,30,48,48,1.0000,2,Add,Add,4500,"RowCollapse: uniform row pattern, dedup rows"
+task366,outputs\onnx\task366.onnx,/Constant_1281_output_0,10x30x30,float32,9000,36000,binary_float_table,-1,300,30,0,0,1.0000,1,Add;ScatterND,Add;ScatterND,4500,"RowCollapse: uniform row pattern, dedup rows"
+task366,outputs\onnx\task366.onnx,/Constant_874_output_0,1x10x30x30,float32,9000,36000,binary_float_table,-1,300,30,0,0,1.0000,1,Concat,Concat;Mul;ReduceSum,4500,"RowCollapse: uniform row pattern, dedup rows"
+task366,outputs\onnx\task366.onnx,/Constant_720_output_0,1x10x30x29,float32,8700,34800,binary_float_table,-1,300,29,0,0,1.0000,1,Concat,Concat;Conv,4350,"RowCollapse: uniform row pattern, dedup rows"
+task157,outputs\onnx\task157.onnx,expand_idx_983,1044,int64,1044,8352,int_index_table,-1,1,1044,0,0,0.0000,4,Gather,Cast;Equal;Gather;OneHot;Reshape;Sub,4176,"uint8 (from int64, range [0,3])"
+task209,outputs\onnx\task209.onnx,c1415,32x30,int64,960,7680,int_index_table,-1,32,30,30,29,0.9917,61,Equal,Cast;Equal;MatMul,3840,"int8 (from int64, range [-31,29])"
+task209,outputs\onnx\task209.onnx,c1417,30x32,int64,960,7680,int_index_table,-1,30,32,31,31,1.0000,61,Equal,Cast;Equal;MatMul,3840,"int8 (from int64, range [-31,29])"
 task019,outputs\onnx\task019.onnx,diffs,30x30,int64,900,7200,int_index_table,-1,30,30,29,29,1.0000,59,Equal,Cast;Equal;MatMul,3600,"int8 (from int64, range [-29,29])"
 task019,outputs\onnx\task019.onnx,diffs_rc,30x30,int64,900,7200,int_index_table,-1,30,30,29,29,1.0000,59,Equal,Cast;Equal;MatMul,3600,"int8 (from int64, range [-29,29])"
 task021,outputs\onnx\task021.onnx,col_grid,30x30,int64,900,7200,int_index_table,-1,30,30,29,29,1.0000,30,Less,And;Less;Where,3600,"uint8 (from int64, range [0,29])"
 task021,outputs\onnx\task021.onnx,row_grid,30x30,int64,900,7200,int_index_table,-1,30,30,30,0,0.8143,30,Less,And;Less;Where,3600,"uint8 (from int64, range [0,29])"
 task071,outputs\onnx\task071.onnx,ipj,30x30,int64,900,7200,int_index_table,-1,30,30,30,29,0.9940,59,Equal,Cast;Equal;MatMul,3600,"uint8 (from int64, range [0,58])"
 task123,outputs\onnx\task123.onnx,level_map,30x30,int64,900,7200,int_index_table,-1,30,30,30,29,0.9940,11,Gather,Gather,3600,"uint8 (from int64, range [0,10])"
+task209,outputs\onnx\task209.onnx,c65,30x30,int64,900,7200,int_index_table,-1,30,30,29,29,1.0000,59,Equal,Cast;Equal;MatMul,3600,"int8 (from int64, range [-29,29])"
+task209,outputs\onnx\task209.onnx,c67,30x30,int64,900,7200,int_index_table,-1,30,30,29,29,1.0000,59,Equal,Cast;Equal;MatMul,3600,"int8 (from int64, range [-29,29])"
 task284,outputs\onnx\task284.onnx,col_grid,1x1x30x30,int64,900,7200,int_index_table,-1,30,30,870,870,1.0000,30,Equal;Greater;Less,And;Equal;Greater;Less;Not;Or,3600,"uint8 (from int64, range [0,29])"
 task284,outputs\onnx\task284.onnx,row_grid,1x1x30x30,int64,900,7200,int_index_table,-1,30,30,870,870,1.0000,30,Equal;Greater;Less,And;Equal;Greater;Less;Not;Or,3600,"uint8 (from int64, range [0,29])"
+task290,outputs\onnx\task290.onnx,out_c_grid,1x900,int64,900,7200,int_index_table,-1,1,900,870,870,1.0000,30,Add;Less,Add;And;Cast;Less;Mul,3600,"uint8 (from int64, range [0,29])"
+task290,outputs\onnx\task290.onnx,out_r_grid,1x900,int64,900,7200,int_index_table,-1,1,900,870,870,1.0000,30,Add;Less,Add;And;Cast;Less;Mul,3600,"uint8 (from int64, range [0,29])"
+task290,outputs\onnx\task290.onnx,thirty_grid,1x900,int64,900,7200,int_index_table,-1,1,900,900,900,1.0000,1,Mul,Add;Mul,3600,"uint8 (from int64, range [30,30])"
 task301,outputs\onnx\task301.onnx,col_grid,30x30,int64,900,7200,int_index_table,-1,30,30,29,29,1.0000,30,Less,And;Cast;Less;Not,3600,"uint8 (from int64, range [0,29])"
 task301,outputs\onnx\task301.onnx,row_grid,30x30,int64,900,7200,int_index_table,-1,30,30,30,0,0.8143,30,Less,And;Cast;Less,3600,"uint8 (from int64, range [0,29])"
+task313,outputs\onnx\task313.onnx,col_grid,30x30,int64,900,7200,int_index_table,-1,30,30,29,29,1.0000,30,Less,And;Less;Where,3600,"uint8 (from int64, range [0,29])"
+task313,outputs\onnx\task313.onnx,row_grid,30x30,int64,900,7200,int_index_table,-1,30,30,30,0,0.8143,30,Less,And;Less;Where,3600,"uint8 (from int64, range [0,29])"
+task313,outputs\onnx\task313.onnx,t313_row_offset,30x30,int64,900,7200,int_index_table,-1,30,30,30,0,0.0000,2,Add,Add;Gather;Where,3600,"uint8 (from int64, range [0,30])"
+task313,outputs\onnx\task313.onnx,t313_src_col2,30x30,int64,900,7200,int_index_table,-1,30,30,30,30,1.0000,2,Where,Add;Gather;Where,3600,"uint8 (from int64, range [1,2])"
+task313,outputs\onnx\task313.onnx,t313_src_col3,30x30,int64,900,7200,int_index_table,-1,30,30,30,30,1.0000,3,Where,Add;Gather;Where,3600,"uint8 (from int64, range [1,3])"
 task366,outputs\onnx\task366.onnx,onnx::GatherElements_1364,900,int64,900,7200,int_index_table,-1,1,900,0,0,0.0000,900,GatherElements,Add;GatherElements;Reshape,3600,"uint16 (from int64, range [0,928])"
+task396,outputs\onnx\task396.onnx,out_c_grid,1x900,int64,900,7200,int_index_table,-1,1,900,870,870,1.0000,30,Add;Less,Add;And;Cast;Less;Mul,3600,"uint8 (from int64, range [0,29])"
+task396,outputs\onnx\task396.onnx,out_r_grid,1x900,int64,900,7200,int_index_table,-1,1,900,870,870,1.0000,30,Add;Less,Add;And;Cast;Less;Mul,3600,"uint8 (from int64, range [0,29])"
+task396,outputs\onnx\task396.onnx,thirty_grid,1x900,int64,900,7200,int_index_table,-1,1,900,900,900,1.0000,1,Mul,Add;Mul,3600,"uint8 (from int64, range [30,30])"
+task027,outputs\onnx\task027.onnx,zeros7,1x7x30x30,float32,6300,25200,binary_float_table,-1,210,30,0,0,1.0000,1,Concat,Concat,3150,"RowCollapse: uniform row pattern, dedup rows"
+task105,outputs\onnx\task105.onnx,zero_rest,1x7x30x30,float32,6300,25200,binary_float_table,-1,210,30,0,0,1.0000,1,Concat,Concat,3150,"RowCollapse: uniform row pattern, dedup rows"
 task398,outputs\onnx\task398.onnx,RPC,1x1x25x25,int64,625,5000,int_index_table,-1,25,25,624,624,1.0000,49,Equal,And;Equal;Or;Where,2500,"uint8 (from int64, range [0,48])"
+task209,outputs\onnx\task209.onnx,c1410,20x30,int64,600,4800,int_index_table,-1,20,30,29,29,1.0000,49,Equal,Cast;Equal;MatMul,2400,"int8 (from int64, range [-29,19])"
 task088,outputs\onnx\task088.onnx,diffs_ij_i,24x24,int64,576,4608,int_index_table,-1,24,24,23,23,1.0000,47,Equal,Cast;Equal;MatMul,2304,"int8 (from int64, range [-23,23])"
 task088,outputs\onnx\task088.onnx,diffs_rc_i,24x24,int64,576,4608,int_index_table,-1,24,24,23,23,1.0000,47,Equal,Cast;Equal;MatMul,2304,"int8 (from int64, range [-23,23])"
 task037,outputs\onnx\task037.onnx,identity_conv_sum_group_prefix_anti_w,9x1x10x10,float16,900,1800,one_hot_matrix,-1,90,10,10,10,1.0000,2,Conv,Conv;Mul;Relu,1800,Gather(index_of_1) + Reshape
 task037,outputs\onnx\task037.onnx,identity_conv_sum_group_prefix_main_w,9x1x10x10,float16,900,1800,one_hot_matrix,-1,90,10,10,10,1.0000,2,Conv,Conv;Mul;Relu,1800,Gather(index_of_1) + Reshape
+task382,outputs\onnx\task382.onnx,v24,30x30,float32,900,3600,one_hot_matmul,-1,30,30,1,1,1.0000,2,MatMul,MatMul;Reshape;Where,1800,GatherIndexTable + Gather
+task367,outputs\onnx\task367.onnx,gate_left_1_1,1x1x28x28,float32,784,3136,one_hot_matrix,-1,28,28,28,28,1.0000,2,Mul,ConvTranspose;Mul;Sum,1568,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_1_2,1x1x28x27,float32,756,3024,one_hot_matrix,-1,28,27,28,28,1.0000,2,Mul,ConvTranspose;Mul;Sum,1512,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_2_1,1x1x27x28,float32,756,3024,one_hot_matrix,-1,27,28,27,27,1.0000,2,Mul,ConvTranspose;Mul;Sum,1512,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_2_2,1x1x27x27,float32,729,2916,one_hot_matrix,-1,27,27,27,27,1.0000,2,Mul,ConvTranspose;Mul;Sum,1458,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_1_3,1x1x28x26,float32,728,2912,one_hot_matrix,-1,28,26,28,28,1.0000,2,Mul,ConvTranspose;Mul;Sum,1456,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_3_1,1x1x26x28,float32,728,2912,one_hot_matrix,-1,26,28,26,26,1.0000,2,Mul,ConvTranspose;Mul;Sum,1456,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_2_3,1x1x27x26,float32,702,2808,one_hot_matrix,-1,27,26,27,27,1.0000,2,Mul,ConvTranspose;Mul;Sum,1404,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_3_2,1x1x26x27,float32,702,2808,one_hot_matrix,-1,26,27,26,26,1.0000,2,Mul,ConvTranspose;Mul;Sum,1404,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_1_4,1x1x28x25,float32,700,2800,one_hot_matrix,-1,28,25,28,28,1.0000,2,Mul,ConvTranspose;Mul;Sum,1400,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_4_1,1x1x25x28,float32,700,2800,one_hot_matrix,-1,25,28,25,25,1.0000,2,Mul,ConvTranspose;Mul;Sum,1400,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_3_3,1x1x26x26,float32,676,2704,one_hot_matrix,-1,26,26,26,26,1.0000,2,Mul,ConvTranspose;Mul;Sum,1352,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_2_4,1x1x27x25,float32,675,2700,one_hot_matrix,-1,27,25,27,27,1.0000,2,Mul,ConvTranspose;Mul;Sum,1350,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_4_2,1x1x25x27,float32,675,2700,one_hot_matrix,-1,25,27,25,25,1.0000,2,Mul,ConvTranspose;Mul;Sum,1350,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_1_5,1x1x28x24,float32,672,2688,one_hot_matrix,-1,28,24,28,28,1.0000,2,Mul,ConvTranspose;Mul;Sum,1344,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_5_1,1x1x24x28,float32,672,2688,one_hot_matrix,-1,24,28,24,24,1.0000,2,Mul,ConvTranspose;Mul;Sum,1344,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_3_4,1x1x26x25,float32,650,2600,one_hot_matrix,-1,26,25,26,26,1.0000,2,Mul,ConvTranspose;Mul;Sum,1300,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_4_3,1x1x25x26,float32,650,2600,one_hot_matrix,-1,25,26,25,25,1.0000,2,Mul,ConvTranspose;Mul;Sum,1300,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_2_5,1x1x27x24,float32,648,2592,one_hot_matrix,-1,27,24,27,27,1.0000,2,Mul,ConvTranspose;Mul;Sum,1296,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_5_2,1x1x24x27,float32,648,2592,one_hot_matrix,-1,24,27,24,24,1.0000,2,Mul,ConvTranspose;Mul;Sum,1296,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_4_4,1x1x25x25,float32,625,2500,one_hot_matrix,-1,25,25,25,25,1.0000,2,Mul,ConvTranspose;Mul;Sum,1250,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_3_5,1x1x26x24,float32,624,2496,one_hot_matrix,-1,26,24,26,26,1.0000,2,Mul,ConvTranspose;Mul;Sum,1248,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_5_3,1x1x24x26,float32,624,2496,one_hot_matrix,-1,24,26,24,24,1.0000,2,Mul,ConvTranspose;Mul;Sum,1248,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_4_5,1x1x25x24,float32,600,2400,one_hot_matrix,-1,25,24,25,25,1.0000,2,Mul,ConvTranspose;Mul;Sum,1200,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_5_4,1x1x24x25,float32,600,2400,one_hot_matrix,-1,24,25,24,24,1.0000,2,Mul,ConvTranspose;Mul;Sum,1200,Gather(index_of_1) + Reshape
+task367,outputs\onnx\task367.onnx,gate_left_5_5,1x1x24x24,float32,576,2304,one_hot_matrix,-1,24,24,24,24,1.0000,2,Mul,ConvTranspose;Mul;Sum,1152,Gather(index_of_1) + Reshape
 task233,outputs\onnx\task233.onnx,perm,4x9x9,float16,324,648,one_hot_matrix,-1,36,9,9,9,1.0000,2,Einsum,Einsum;Gather;ReduceSum;Reshape,648,Gather(index_of_1) + Reshape
 task234,outputs\onnx\task234.onnx,v3,9x1x30x1,float16,270,540,one_hot_matrix,-1,270,1,30,30,1.0000,1,Conv,And;Conv;Less,540,Gather(index_of_1) + Reshape
 task239,outputs\onnx\task239.onnx,col_oh_3d,9x1x30,float16,270,540,one_hot_matrix,-1,9,30,1,1,1.0000,2,Where,MatMul;Reshape;Where,540,Gather(index_of_1) + Reshape

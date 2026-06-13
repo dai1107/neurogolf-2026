@@ -1,5 +1,92 @@
 # 当前进度
 
+## 2026-06-10 - 方向4完成 + 提交重建
+
+### 当前线上分数：6037.51
+
+### 本轮新增
+
+- `src/object_crop_selector_v2.py` — 方向4：Object/Crop Selector v2
+  - Python DSL搜索：8种selector策略（non_background, color, largest_object, not_touching_border, inside_frame, etc.）
+  - 3种action（identity, horizontal_mirror, vertical_mirror, color_map）
+  - ONNX编译器：静态bbox裁剪 + 镜像 + 颜色映射
+  - 扫描273个任务，匹配3个DSL程序（task036, task177, task300）
+  - 0个有效候选 — 所有匹配任务都是动态bbox（不同train case bbox不同）
+  - 结论：低垂果实已被现有规则覆盖，剩余crop任务需要动态bbox支持
+  - 报告：`outputs/reports/object_crop_selector_v2_report.csv`
+
+### 优化策略完成状态（8+5=13项）
+
+| 事项 | 状态 | 说明 |
+|------|------|------|
+| 第一件事：增益上限表 | ✅ | `score_potential_dashboard.py` |
+| 第二件事：400任务分类 | ✅ | `task_family_taxonomy_v2.py` |
+| 第三件事：DSL合成 | ✅ | `panel_algebra_dsl.py` + `same_shape_mask_dsl_batch_search.py` — 0匹配，低垂果实已尽 |
+| 第四件事：批量消融 | ✅ | `family_batch_ablation.py` |
+| 第五件事：线上反推器 | ✅ | `online_result_memory.py` |
+| 方向1：Gather全局化 | ✅ | `gather_rewrite_global.py` — 发现dtype压缩候选但线上不安全 |
+| 方向2：Mask DSL | ✅ | `same_shape_mask_dsl_batch_search.py` |
+| 方向3：Panel algebra | ✅ | `panel_algebra_dsl.py` — 0匹配 |
+| 方向4：Object/crop | ✅ | `object_crop_selector_v2.py` — 3匹配，0候选（需动态bbox） |
+| 方向5：模型反编译 | ✅ | `model_decompiler.py` — 78个Gather候选，77个公式候选 |
+
+**全部13项已完成。**
+
+### 核心结论
+
+1. **内部cost ≠ 线上score** — task133内部-332K，线上+0.01
+2. **dtype压缩100%失败** — int64→int32全pass本地但线上回退
+3. **简单DSL已穷尽** — mask/panel DSL对剩余高cost任务0匹配
+4. **Gather重写是唯一安全路径** — 但task133只+0.01说明收益有限
+5. **动态bbox是下一个突破点** — 3个crop匹配任务都需要动态bbox，但ONNX编译复杂
+6. **当前6037.51可能是本地优化的天花板** — 除非理解线上计分模型或构建per-family复杂DSL
+
+### 当前提交
+
+- `outputs/submissions/submission.zip`: 400/400 models, cost 5,298,688, size 1,301,481 bytes
+- `outputs/reports/current_model_bank_report.csv`: updated
+- 所有13个分析脚本就绪，可随时调用
+
+---
+
+## 2026-06-10 - 优化策略全覆盖：分析报告 + 四个方向全部完成
+
+| 脚本 | 对应策略 | 产出 |
+|------|---------|------|
+| `src/score_potential_dashboard.py` | 第一件事 | `outputs/reports/score_potential_dashboard.csv` — 400任务增益上限分析 |
+| `src/task_family_taxonomy_v2.py` | 第二件事 | `outputs/reports/task_family_taxonomy_v2.csv` — 400任务A-L分类 |
+| `src/gather_rewrite_global.py` | 方向1 | `outputs/reports/gather_rewrite_global_report.csv` — 94候选, 12有效 |
+| `src/same_shape_mask_dsl_batch_search.py` | 方向2 | `outputs/reports/same_shape_mask_dsl_batch_report.csv` — DSL框架, 0匹配 |
+| `src/online_result_memory.py` | 第五件事 | `outputs/reports/online_result_memory.csv` — 14条线上反馈系统化 |
+| `src/model_decompiler.py` | 方向5 | `outputs/reports/model_decompilation.csv` — 40模型, 276初始化器分类 |
+| `src/panel_algebra_dsl.py` | 方向3+第三件事 | `outputs/reports/panel_algebra_dsl_report.csv` — Panel DSL, 0匹配 |
+| `src/family_batch_ablation.py` | 第四件事 | 按family分组消融工具 |
+
+### 线上反馈规律（已确认）
+
+**安全模式（正收益/持平）**：
+- Structural Gather重写（task076 perm→Gather: +）
+- Row-bank前缀裁剪（task290/396: 持平）
+- Prior-range裁剪（task209: 持平）
+- 简单几何规则构建器（line projection, fill, stripe）
+- Enumeration table裁剪（task157 placement: 持平）
+
+**不安全模式（线上回退）**：
+- Dtype压缩（task233 int64→int32: -0.40）
+- 语义模板匹配（task076 template, task367 cavity）
+- Conv→Pad/Slice/Concat展开
+- 语义frame/panel检测
+
+### 关键发现
+
+1. 内部cost模型与线上计分模型存在显著差距（task133 Gather重写内部-332K，线上+0.01）
+2. 简单DSL（mask/panel）对所有剩余高cost任务都是0匹配 — 低垂果实已被pattern_rules.py摘完
+3. 78个初始化器可Gather替换，77个可公式替换，但线上反馈表明内部cost下降不直接转化为线上分数
+4. Task133 non_anchor_vector_bank不是one-hot（只能重写anchor部分）
+5. 后续突破需要：模型反编译 + per-family DSL合成器 + 理解线上计分模型
+
+---
+
 ## 2026-06-09 - Rollback: 6028 → 6037.90, new safe ablation workflow
 
 ### Root Cause
@@ -2259,3 +2346,791 @@ python -m src.validate_labelled_splits --model outputs\onnx\task157.onnx --task 
     interval-prune builder expects the original 465-row source.
 - No candidate was promoted into `outputs/onnx/`, and this round did not rebuild
   or replace `outputs/submission.zip`.
+
+## 2026-06-10 - 6275 reference submission normalization and safe hybrid
+
+- Reviewed `surgical-onnx-precision-parameter-reduction.ipynb`.
+  - The notebook applies three ONNX cleanup passes to a public 6275 submission:
+    remove unused initializers, deduplicate identical initializers, and
+    scalar-compress uniform tensors only for broadcast-safe consumers.
+  - Its uniform-tensor pass explicitly skips `task158`.
+- Normalized `6275_submission.zip` into flat task files under
+  `outputs/reference_6275_flat/`, because the source zip stores entries as
+  `submission/taskNNN.onnx`.
+- Updated `src/blend_archive_submission.py`:
+  - added `--validation-mode trusted` for structural/cost blending of known
+    online-clean model banks;
+  - added `--force-archive-task-ids` and `--force-current-task-ids` for safety
+    overrides.
+- Added `tests/test_blend_archive_submission.py`.
+- Built normalized 6275 package:
+  - `outputs/submissions/6275_normalized_submission.zip`
+  - selected tasks: 400 / 400
+  - estimated cost total: 1,375,369
+  - ONNX file size total: 3,384,276 bytes
+  - zip size: 723,414 bytes
+- Built min-cost hybrid:
+  - `outputs/submissions/hybrid_6275_current_min_cost_submission.zip`
+  - source split: 247 archive / 153 current
+  - estimated cost total: 870,803
+  - ONNX file size total: 3,470,710 bytes
+  - local estimated score sum: 7,393.7551
+  - not promoted because strict validation found current `task042` and
+    `task184` crash ORT locally, while the 6275 versions pass strict.
+- Built and promoted safe hybrid:
+  - `outputs/submissions/hybrid_6275_current_safe_submission.zip`
+  - promoted to `outputs/submission.zip`
+  - mirrored to `outputs/submissions/submission.zip`
+  - source split: 249 archive / 151 current
+  - estimated cost total: 920,460
+  - ONNX file size total: 3,507,105 bytes
+  - zip size: 771,879 bytes
+  - local estimated score sum: 7,387.4775
+- Validation:
+  - `src.inspect_submission` passed for the promoted zip paths.
+  - Strict local validation passed 383 / 400 tasks.
+  - Remaining 17 strict failures are all `nonzero_padding_cells: case=0`, and
+    both archive/current sources fail locally for them:
+    `task004, task073, task095, task098, task099, task120, task122, task147,
+    task171, task180, task258, task266, task272, task283, task294, task331,
+    task344`.
+  - Treat this package as trusted-online/structural-valid, not as a strict local
+    full-pass package.
+
+## 2026-06-11 - Output packaging rule correction
+
+- User reported the previous hybrid submission was worse than the 6275
+  reference, so future work must not overwrite `outputs/submission.zip` when
+  producing new candidates.
+- Treat `outputs/submission.zip` as a frozen/reference submission unless the
+  user explicitly asks to replace it.
+- New candidate submissions should follow the existing ablation layout:
+  `outputs/ablation_submissions/<round>/<candidate>/submission.zip`.
+- Each ablation zip should replace exactly one task when possible, with a CSV
+  report under `outputs/reports/` so online scores can be tracked cleanly.
+
+## 2026-06-11 - Local / 6275 / per-task take-best submissions
+
+- Generated three clearly separated upload packages without modifying
+  `outputs/submission.zip`:
+  - local:
+    `outputs/ablation_submissions/version_take_best_20260611/local/submission.zip`
+  - 6275 reference:
+    `outputs/ablation_submissions/version_take_best_20260611/ref6275/submission.zip`
+  - per-task take-best hybrid:
+    `outputs/ablation_submissions/version_take_best_20260611/hybrid_take_best/submission.zip`
+- Hybrid rule:
+  - compare `outputs/reference_6275_flat/taskNNN.onnx` with
+    `outputs/onnx/taskNNN.onnx`;
+  - both sides are trusted/structural validated;
+  - select the model with lower local `estimated_cost`;
+  - ties follow the current `blend_archive_submission.py` tie-break and select
+    current/local.
+- Hybrid source split:
+  - 247 tasks from 6275 archive;
+  - 153 tasks from local/current;
+  - total local estimated cost: 870,803.
+- All three zips passed `src.inspect_submission` with 400 ONNX entries.
+- Reports:
+  - `outputs/reports/version_take_best_20260611_local.csv`
+  - `outputs/reports/version_take_best_20260611_ref6275.csv`
+  - `outputs/reports/version_take_best_20260611_hybrid_take_best.csv`
+- Important caveat:
+  - this is per-task local cost take-best, not per-task online-confirmed
+    take-best. The online-result memory can guide risk, but cannot infer every
+    task's true online contribution from one aggregate hybrid score.
+
+## 2026-06-11 - Online result: local-cost hybrid rejected
+
+- User reported online scores:
+  - local: 6037.50
+  - 6275 reference: 6275.09
+  - local-cost take-best hybrid: 6227.52
+- Decision:
+  - reject `version_take_best_20260611/hybrid_take_best/submission.zip`;
+  - local estimated cost is not a valid proxy for per-task online quality
+    against the 6275 reference.
+- Added `src/build_pairwise_local_reference_ablations.py`.
+  - It keeps the 6275 submission as base.
+  - Each generated zip replaces exactly one task with the local model.
+  - This is the correct attribution workflow for constructing a true
+    online-confirmed take-best submission.
+- Generated single-task local-over-6275 ablations for the 153 tasks that the
+  rejected hybrid selected from local:
+  - output directory:
+    `outputs/ablation_submissions/ref6275_local_single_task_20260611/`
+  - report:
+    `outputs/reports/ref6275_local_single_task_20260611.csv`
+  - priority report, excluding known strict-crash tasks `task042` and
+    `task184`:
+    `outputs/reports/ref6275_local_single_task_20260611_priority.csv`
+  - online result entry template:
+    `outputs/reports/ref6275_local_single_task_20260611_online_results_template.csv`
+- Generation summary:
+  - selected local tasks from rejected hybrid: 153
+  - byte-identical to 6275 base and skipped: 96
+  - actual one-task replacement zips generated: 57
+  - failed generations: 0
+- `task255_LocalOverReference/submission.zip` was inspected with
+  `src.inspect_submission` and passed with 400 ONNX entries.
+
+## 2026-06-11 - 6275 baseline optimization candidates
+
+- User reported that none of the local-over-6275 single-task ablations beat
+  the 6275.09 baseline.
+- Decision:
+  - stop mixing or testing the 6037.50 local model bank as a replacement source;
+  - treat `outputs/reference_6275_flat` as the active baseline model bank for
+    optimization work;
+  - only generate candidates derived from the 6275 models.
+- Existing 6275 cleanup status:
+  - `deduplicate_initializers` found 0 improvements;
+  - `remove_zero_adds` initially exposed a tool bug on unnamed ONNX nodes and
+    graph outputs; fixed the pass to delete by node index and keep graph-output
+    identity nodes.
+- Generated 6275-derived candidate batches:
+  - zero initializer compression:
+    `outputs/ablation_submissions/ref6275_zero_initializer_single_task_20260611/`
+  - zero-add/no-op removal:
+    `outputs/ablation_submissions/ref6275_zero_add_single_task_20260611/`
+- Reports/templates:
+  - `outputs/reports/ref6275_zero_initializer_compression.csv`
+  - `outputs/reports/ref6275_zero_initializer_single_task_20260611.csv`
+  - `outputs/reports/ref6275_zero_initializer_online_results_template.csv`
+  - `outputs/reports/ref6275_zero_add_removed.csv`
+  - `outputs/reports/ref6275_zero_add_single_task_20260611.csv`
+  - `outputs/reports/ref6275_zero_add_online_results_template.csv`
+  - `outputs/reports/ref6275_exact_gather_rewrites_discovery.csv`
+  - `outputs/reports/ref6275_model_decompilation.csv`
+- Candidate summary:
+  - zero initializer compression: 54 one-task zips, local cost delta -109,247;
+  - zero-add removal: 2 one-task zips, local cost delta -48;
+  - top zero-initializer candidates by local delta:
+    `task184`, `task392`, `task330`, `task338`, `task279`.
+- Validation:
+  - top five zero-initializer candidates passed `src.evaluate_onnx_candidate`;
+  - inspected upload zips:
+    `task184_ZeroInitializerCompression/submission.zip` and
+    `task157_ZeroAddRemoved/submission.zip`, both passed with 400 ONNX entries;
+  - tests passed:
+    `tests/test_build_pairwise_local_reference_ablations.py`,
+    `tests/test_remove_zero_adds.py`,
+    `tests/test_zero_initializer_compression.py`;
+  - `python -m compileall src tests` passed after fixing the stale syntax
+    placeholder in `src/task366_semantic_builder.py`.
+- Do not batch-promote these candidates. Submit one-task zips against the
+  6275.09 baseline and keep only candidates with online score >= 6275.09.
+
+## 2026-06-11 - Online rejection: ZeroAddRemoved
+
+- User reported official processing errors for:
+  - `task158_ZeroAddRemoved`
+  - `task157_ZeroAddRemoved`
+- Follow-up strict validation confirmed both candidates were invalid locally:
+  - `task157`: ORT load failed with `ReduceSum` axis/rank shape inference
+    error;
+  - `task158`: ORT runtime failed at `Reshape`.
+- Root cause:
+  - `remove_zero_adds` treated Add(0)/Mul(1)/Sub(X,0) as pure value
+    identities;
+  - in these models the identity constants also perform broadcasting/rank
+    expansion, so deleting them changes downstream tensor shape.
+- Fixed `src/remove_zero_adds.py` to only remove an identity op when inferred
+  static output shape equals the passthrough input shape.
+- Added regression test:
+  - `test_remove_zero_adds_keeps_identity_when_it_broadcasts_shape`.
+- Re-scanned 6275 with the safer pass:
+  - `outputs/reports/ref6275_zero_add_removed_safe.csv`
+  - 0 cost-improving candidates.
+- Decision:
+  - reject all existing `ref6275_zero_add_single_task_20260611` upload zips;
+  - do not submit or promote `ZeroAddRemoved` candidates;
+  - continue only with 6275-derived `ZeroInitializerCompression` candidates.
+- Updated:
+  - `outputs/reports/ref6275_zero_add_online_results_template.csv`
+    marks both rows as `reject_error_processing`.
+- Re-verified this round:
+  - unsafe `task157_ZeroAddRemoved` fails ORT load with `ReduceSum` axis/rank
+    error;
+  - unsafe `task158_ZeroAddRemoved` fails ORT runtime at `Reshape`;
+  - safe regenerated copies pass strict task evaluation but have no estimated
+    cost improvement, so no upload candidates are generated;
+  - `pytest` for zero-add/zero-initializer/pairwise ablation tests passed;
+  - `python -m compileall src tests` passed.
+
+## 2026-06-11 - Same-score zero-initializer merge candidate
+
+- User clarified that the same-score candidates are ordinal positions in the
+  zero-initializer candidate list sorted by `task_id` ascending, not by local
+  cost delta.
+- Selected ordinals:
+  `1,4,5,8,9,11,12,14,19,21,24,25,26,32,33,34,35`.
+- Mapped tasks:
+  `task024, task034, task050, task081, task096, task109, task125, task139,
+  task195, task204, task231, task239, task246, task277, task278, task279,
+  task280`.
+- Added `src/build_multi_task_reference_ablation.py`.
+  - Builds one full submission zip from a reference base and multiple
+    replacement tasks.
+  - Selects replacements by 1-based ordinal over a task-id-sorted report.
+  - Writes a report with ordinal, task id, replacement path, hashes, and cost
+    deltas.
+- Added `tests/test_build_multi_task_reference_ablation.py`.
+- Generated upload candidate without modifying `outputs/submission.zip`:
+  `outputs/ablation_submissions/ref6275_zero_initializer_same_score_merge_20260611/same_score_ord_001_004_005_008_009_011_012_014_019_021_024_025_026_032_033_034_035/submission.zip`
+- Report:
+  `outputs/reports/ref6275_zero_initializer_same_score_merge_20260611.csv`
+- Online-result template:
+  `outputs/reports/ref6275_zero_initializer_same_score_merge_20260611_online_template.csv`
+- Local structural validation:
+  - candidate zip inspected successfully with 400 ONNX entries;
+  - upload copy inspected successfully with 400 ONNX entries.
+- Local estimated total cost delta vs 6275 base for these 17 replacements:
+  `-15,365`.
+- `outputs/submission.zip` was not rewritten.
+- Online result reported on 2026-06-12:
+  - score: `6274.97`;
+  - delta vs 6275.09: `-0.12`;
+  - decision: reject this merged candidate.
+- Correction:
+  - this package used the wrong intended task mapping near the end:
+    included `task278, task279` and omitted `task281, task285`;
+  - the `6274.97` result applies only to the wrong-mapping package, not to the
+    user's intended 17-task merge.
+
+## 2026-06-12 - Corrected same-score zero-initializer merge candidate
+
+- Correct user-intended task set:
+  `task024, task034, task050, task081, task096, task109, task125, task139,
+  task195, task204, task231, task239, task246, task277, task280, task281,
+  task285`.
+- Added corrected selection report:
+  `outputs/reports/ref6275_zero_initializer_same_score_merge_corrected_20260612_selection.csv`
+- Generated upload candidate without modifying `outputs/submission.zip`:
+  `outputs/ablation_submissions/ref6275_zero_initializer_same_score_merge_corrected_20260612/same_score_tasks_024_034_050_081_096_109_125_139_195_204_231_239_246_277_280_281_285/submission.zip`
+- Report:
+  `outputs/reports/ref6275_zero_initializer_same_score_merge_corrected_20260612.csv`
+- Online-result template:
+  `outputs/reports/ref6275_zero_initializer_same_score_merge_corrected_20260612_online_template.csv`
+- Local structural validation:
+  - candidate zip inspected successfully with 400 ONNX entries;
+  - upload copy inspected successfully with 400 ONNX entries.
+- Local estimated total cost delta vs 6275 base for these 17 replacements:
+  `-13,520`.
+- `outputs/submission.zip` was not rewritten.
+- Online result reported on 2026-06-12:
+  - score: `6275.08`;
+  - delta vs 6275.09: `-0.01`;
+  - decision: reject corrected same-score merge.
+- Updated:
+  - `outputs/reports/ref6275_zero_initializer_same_score_merge_corrected_20260612_online_template.csv`
+  - `src/online_result_memory.py`
+  - `outputs/reports/online_result_memory.csv`
+- Policy:
+  - displayed same-score zero-initializer candidates are not safe to merge;
+  - keep the 6275.09 reference as baseline;
+  - only promote future replacements with strictly positive one-task online
+    evidence, or test smaller groups only as diagnostics rather than promotion
+    candidates.
+
+## 2026-06-12 - Ref6275 local-over-reference priority refresh
+
+- User reported that every upload under
+  `outputs/ablation_submissions/ref6275_zero_initializer_single_task_20260611`
+  scored at or below `6275.09`; no zero-initializer one-task candidate improved
+  the 6275.09 reference.
+- Decision:
+  - freeze zero-initializer promotion work for now;
+  - keep `outputs/ablation_submissions/version_take_best_20260611/ref6275/submission.zip`
+    as the active reference;
+  - move to non-zero-initializer one-task local-over-reference ablations.
+- Recomputed the positive local-over-reference candidate ordering from the full
+  report, not the earlier priority subset:
+  `outputs/reports/ref6275_local_single_task_20260611.csv`.
+- Found `39` structurally valid one-task replacements with positive local cost
+  delta vs the 6275 reference, totaling `504,566` estimated local cost delta.
+- The earlier priority/template omitted positive candidates including:
+  - `task184`: local delta `48,100`;
+  - `task042`: local delta `1,557`.
+- Generated corrected reports:
+  - `outputs/reports/ref6275_local_single_task_20260612_corrected_priority.csv`;
+  - `outputs/reports/ref6275_local_single_task_20260612_next_upload_batch.csv`.
+- `task184` was not placed in the next upload batch despite high local delta:
+  - its upload zip passes structural inspection with 400 ONNX entries;
+  - `python -m src.evaluate_onnx_candidate --model outputs\onnx\task184.onnx --task task\task184.json`
+    exits with code `1` and no JSON output;
+  - labelled-splits validation also exits with code `1` and no output;
+  - many `arc-gen` inputs exceed the project's current 30x30 runtime wrapper,
+    so this candidate needs separate diagnosis before online upload.
+- Next upload batch, one zip at a time:
+  `task255, task240, task349, task248, task205, task151, task364, task279,
+  task014, task264`.
+- Local verification for the next batch:
+  - all ten replacement models passed `src.evaluate_onnx_candidate`;
+  - upload zips for all ten passed `src.inspect_submission` with 400 ONNX
+    entries;
+  - `outputs/submission.zip` was not modified.
+
+## 2026-06-12 - 6348.56 hybrid stack promoted as current best
+
+- Imported new external assets:
+  - `neurogolf-6348-56.ipynb`
+  - `6348.56submission.zip`
+- The new zip uses the notebook-described hybrid stack layout:
+  - `base_submission/taskNNN.onnx`: 400 entries;
+  - `overrides/taskNNN.onnx`: 400 entries;
+  - no directory entries in the zip.
+- Updated tooling:
+  - `src.inspect_submission` now supports both legacy flat `taskNNN.onnx`
+    submissions and the hybrid stack layout;
+  - added `src.select_best_submission` to choose among known-online
+    submissions by reported online score, not by local cost proxy;
+  - added `tests/test_select_best_submission.py`.
+- Take-best decision:
+  - compared `outputs/submissions/6275_normalized_submission.zip` at `6275.09`
+    with `6348.56submission.zip` at `6348.56`;
+  - selected `neurogolf_6348_56` as the new active best package;
+  - this is an aggregate known-online take-best decision, not per-task online
+    attribution.
+- Generated / updated:
+  - `outputs/submission.zip`
+  - `outputs/submissions/submission.zip`
+  - `outputs/submissions/6348_56_hybrid_stack_submission.zip`
+  - `outputs/reference_6348_56_stack/`
+  - `outputs/reports/submission_take_best_6275_vs_6348_20260612.csv`
+  - `outputs/reports/online_result_memory.csv`
+- Validation:
+  - `python -m src.inspect_submission --zip outputs\submission.zip`
+    passed as `hybrid_stack`, `800` models, `400` task IDs;
+  - `python -m src.inspect_submission --zip outputs\submissions\6348_56_hybrid_stack_submission.zip`
+    passed as `hybrid_stack`, `800` models, `400` task IDs;
+  - `python -m pytest tests\test_select_best_submission.py tests\test_sync_and_ablation_submissions.py tests\test_blend_archive_submission.py`
+    passed: `6 passed`.
+- Policy update:
+  - 6348.56 is now the active known-online reference;
+  - do not infer task-level online wins from the aggregate 6348.56 score;
+  - use one-task ablations or future source-provided task attribution before
+    replacing individual entries inside this stack.
+
+## 2026-06-12 - 6275/6348 local-cost experiment and one-task ablations
+
+- Added `src.build_6348_6275_cost_experiments`.
+- Added `tests/test_build_6348_6275_cost_experiments.py`.
+- Built a flat local-cost experimental candidate without modifying the active
+  known-online `outputs/submission.zip`:
+  - `outputs/ablation_submissions/6348_6275_local_cost_20260612/submission.zip`
+  - layout: flat `taskNNN.onnx`;
+  - selected tasks: `400`;
+  - source split: `53` from 6275, `50` from 6348 base, `297` from 6348
+    overrides;
+  - selected local estimated cost sum: `673,220`;
+  - zip size: `682,091` bytes.
+- Selection report:
+  - `outputs/reports/6348_6275_local_cost_selection_20260612.csv`
+- Built one-task ablations corresponding to the `53` local-cost selections from
+  6275:
+  - base: `outputs/submissions/6348_56_hybrid_stack_submission.zip`;
+  - output dir:
+    `outputs/ablation_submissions/6348_56_ref6275_one_task_20260612`;
+  - each candidate replaces both
+    `base_submission/taskNNN.onnx` and `overrides/taskNNN.onnx` with the 6275
+    model for exactly one task;
+  - valid zips generated: `53`;
+  - failed generations: `0`.
+- Ablation reports:
+  - `outputs/reports/6348_56_ref6275_one_task_20260612.csv`;
+  - `outputs/reports/6348_56_ref6275_one_task_20260612_priority.csv`.
+- Suggested first upload order by local cost delta:
+  `task101, task076, task285, task328, task370, task377, task363, task071,
+  task203, task383`.
+- Validation:
+  - `python -m pytest tests\test_build_6348_6275_cost_experiments.py tests\test_select_best_submission.py`
+    passed: `3 passed`;
+  - `python -m py_compile src\build_6348_6275_cost_experiments.py
+    src\inspect_submission.py src\select_best_submission.py` passed;
+  - local-cost flat package passed `src.inspect_submission`;
+  - 6348 base hybrid package and first one-task ablation package passed
+    `src.inspect_submission`;
+  - `git diff --check` reported no whitespace errors, only CRLF warnings.
+- Safety note:
+  - the local-cost package is experimental and not online-confirmed;
+  - the active submit-ready package remains the byte-identical 6348.56 mirror at
+    `outputs/submission.zip`.
+
+## 2026-06-12 - External-model optimization brief
+
+- User reported that none of the generated 6275-over-6348 one-task ablations
+  improved the 6348.56 baseline online.
+- Conclusion:
+  - do not promote any 6275-over-6348 replacement from the current local-cost
+    set;
+  - keep `outputs/submission.zip` as the 6348.56 byte-identical active
+    baseline;
+  - local structural cost is not sufficient for per-task online promotion.
+- Added external-model context brief:
+  - `outputs/reports/current_model_algorithm_summary_20260612.md`
+- The brief summarizes:
+  - active 6348.56 hybrid stack layout;
+  - local rule-based solver pipeline;
+  - ONNX constraints and tensor representation;
+  - implemented rule families and builder patterns;
+  - known online-safe and online-risky optimization families;
+  - recent failed 6275-over-6348 local-cost ablation result;
+  - concrete questions for an external model to propose safer optimization
+    experiments.
+
+## 2026-06-12 - 6348 hybrid-stack equivalent graph optimization pass
+
+- Implemented `src.hybrid_stack_optimizer`.
+  - P0 graph fingerprinting for the 6348.56 hybrid stack.
+  - P1 output-reachable dead node / initializer pruning.
+  - P2 duplicate initializer deduplication inside one ONNX file.
+  - P3-A constant-Gather table pruning support, preserving op type and dtype.
+  - Strict source-vs-candidate equivalence validation using one subprocess per
+    candidate so ORT process crashes are recorded per row instead of aborting
+    the run.
+  - One-task, one-lane hybrid ablation zip generation.
+- Added `tests/test_hybrid_stack_optimizer.py`.
+- P0 analysis report:
+  - `outputs/reports/ref6348_graph_fingerprints_20260612.csv`
+  - analyzed `800` models across `400` task IDs;
+  - found `678` graph/initializer-shape templates;
+  - found `62` byte-identical base/override task pairs.
+- Graph-only optimization scan:
+  - output dir: `outputs/candidates/ref6348_equiv_optimized_stack_graphonly`
+  - report: `outputs/reports/ref6348_equiv_optimized_stack_graphonly.csv`
+  - scanned `800` models;
+  - found `38` checker/static/forbidden-op valid graph-level candidates;
+  - estimated graph-only deltas:
+    - file size: `-1,568,077` bytes;
+    - initializer memory: `-1,325,845` bytes;
+    - estimated cost: `-1,531,996`;
+  - no P3-A constant-Gather table candidates were found in this pass; savings
+    came from P1/P2 dead-code and duplicate-initializer cleanup.
+- Strict equivalence validation:
+  - report: `outputs/reports/ref6348_equiv_optimized_stack_strict.csv`
+  - selected graph-only candidates: `38`;
+  - valid strict candidates: `35`;
+  - failed candidates: `3`;
+  - validation input set per candidate:
+    - all train inputs;
+    - all-zero 30x30;
+    - all-one 30x30;
+    - single-point color input;
+    - random full one-hot input;
+    - nonzero-padding one-hot input;
+    - `20` additional deterministic random one-hot fuzz inputs.
+  - all accepted candidates had exact tensor equality versus the source model
+    with max absolute diff `0.0`.
+  - rejected:
+    - `task175` / `base_submission`: validation subprocess exited
+      `3221225620`;
+    - `task363` / `base_submission`: random fuzz hit source/candidate Gather
+      out-of-bounds behavior (`idx=99`), so not promoted;
+    - `task358` / `overrides`: validation subprocess exited `3221225620`.
+  - accepted strict deltas:
+    - file size: `-1,566,611` bytes;
+    - initializer memory: `-1,325,325` bytes;
+    - estimated cost: `-1,531,410`.
+- Built one-task, one-lane ablation zips:
+  - output dir:
+    `outputs/ablation_submissions/ref6348_equiv_optimized_lane_20260612`
+  - report:
+    `outputs/reports/ref6348_equiv_optimized_lane_ablations.csv`
+  - valid upload candidates: `35`;
+  - failed zip builds: `0`;
+  - first/top inspected upload zips passed `src.inspect_submission` as
+    `hybrid_stack` with `800` models and `400` task IDs:
+    - `task209_base_EquivOptimized/submission.zip`;
+    - `task025_base_EquivOptimized/submission.zip`;
+    - `task319_base_EquivOptimized/submission.zip`.
+- Suggested first online one-lane upload order by file-size savings:
+  `task209/base_submission`, `task025/base_submission`,
+  `task319/base_submission`, `task367/base_submission`,
+  `task153/base_submission`, `task157/base_submission`,
+  `task233/base_submission`, `task366/base_submission`,
+  `task285/base_submission`, `task387/base_submission`.
+- Safety:
+  - `outputs/submission.zip` was not overwritten;
+  - SHA256 still matches `6348.56submission.zip`:
+    `BF39E6F1C9A09B2F52E147FDB9ACF13820EE64B9EEAE786E53ECDE4D0B4A1418`;
+  - no candidate has been promoted into the active submit-ready package.
+- Validation commands:
+  - `python -m pytest tests\test_hybrid_stack_optimizer.py tests\test_deduplicate_initializers.py tests\test_build_6348_6275_cost_experiments.py tests\test_select_best_submission.py`
+    passed: `9 passed`;
+  - `python -m py_compile src\hybrid_stack_optimizer.py src\inspect_submission.py src\select_best_submission.py`
+    passed;
+  - `git diff --check` reported no whitespace errors, only existing CRLF
+    warnings.
+
+## 2026-06-13 - Merged all online-flat 6348.56 equivalent lane optimizations
+
+- User reported that all previously uploaded
+  `ref6348_equiv_optimized_lane_20260612` one-task / one-lane ablations scored
+  `6348.56` online, unchanged from the active 6348.56 baseline.
+- Added `src.hybrid_stack_optimizer merge` to build one hybrid-stack submission
+  containing all selected strict-valid equivalent replacements.
+- Added test coverage:
+  - `tests/test_hybrid_stack_optimizer.py::test_build_merged_submission_applies_all_selected_replacements`.
+- Built merged package from:
+  - base:
+    `outputs/submissions/6348_56_hybrid_stack_submission.zip`;
+  - candidate report:
+    `outputs/reports/ref6348_equiv_optimized_stack_strict.csv`.
+- Generated / updated:
+  - `outputs/ablation_submissions/ref6348_equiv_optimized_merged_20260613/submission.zip`;
+  - `outputs/submissions/ref6348_equiv_optimized_merged_20260613_submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - `outputs/submission.zip`;
+  - `outputs/reports/ref6348_equiv_optimized_merged_20260613.csv`.
+  - `outputs/reports/online_result_memory.csv`.
+- Merge summary:
+  - selected strict-valid rows: `35`;
+  - merged replacements: `35`;
+  - failed replacements: `0`;
+  - local estimated cost delta: `-1,531,410`;
+  - local file-size delta: `-1,566,611` bytes;
+  - local initializer-memory delta: `-1,325,325` bytes.
+- Final `outputs/submission.zip`:
+  - layout: `hybrid_stack`;
+  - models: `800`;
+  - task IDs: `400`;
+  - size: `2,085,274` bytes;
+  - SHA256:
+    `8C848B6F45EAB9F357D13537E5C5A8930CB4E057DBA7A9CB32004BD710BD3A23`.
+- Validation:
+  - `python -m pytest tests\test_hybrid_stack_optimizer.py` passed:
+    `5 passed`;
+  - `python -m py_compile src\hybrid_stack_optimizer.py tests\test_hybrid_stack_optimizer.py`
+    passed;
+  - `python -m src.inspect_submission --zip outputs\submission.zip --layout hybrid_stack`
+    passed;
+  - named copy inspection also passed.
+  - `python -m src.online_result_memory --report outputs\reports\online_result_memory.csv`
+    rebuilt the online memory with `17` known results.
+- Safety note:
+  - this is a batch merge of individually online-flat equivalent graph
+    optimizations;
+  - expected online behavior is still empirical, not guaranteed;
+  - recheck the merged package online before treating it as the new confirmed
+    baseline.
+
+## 2026-06-13 - Online-flat merge diagnosed; new task101/task255 algorithm candidates
+
+- User reported the merged 35-lane equivalent package also scored `6348.56`
+  online. This confirms the prior graph-equivalent cleanup did not move the
+  official best-lane score.
+- Updated `src.online_result_memory` and rebuilt
+  `outputs/reports/online_result_memory.csv` with `18` known results.
+- Continued with the official-static objective:
+  - current 6348.56 stack best-lane estimate: `6348.568502`;
+  - high-priority best-lane targets begin with `task255`, `task101`,
+    `task133`, `task158`.
+
+New verified candidates:
+
+- `task255` override shape-family pruning:
+  - script: `src/task255_override_shape_prune.py`;
+  - tests: `tests/test_task255_override_shape_prune.py`;
+  - candidate:
+    `outputs/candidates/task255_override_shape_prune/task255_ShapePruned6To12.onnx`;
+  - rule: keep largest-empty-rectangle search branches with short side `6..12`
+    and long side `26` or `30`; keep downstream corridor-arm logic unchanged;
+  - labelled validation: `265/265` train/test/arc-gen passed;
+  - official-static cost: `360329 -> 251934`;
+  - estimated single-task score delta: `+0.357850`.
+- `task101` template-radius pruning:
+  - script: `src/task101_template_radius_prune.py`;
+  - tests: `tests/test_task101_template_radius_prune.py`;
+  - candidate:
+    `outputs/candidates/task101_radius_prune/task101_TemplateRadius02.onnx`;
+  - rule: rewire template component expansion from `R_15` to minimal validated
+    `R_02`; `R_01` failed arc-gen, so it was rejected;
+  - labelled validation: `266/266` train/test/arc-gen passed;
+  - official-static cost: `220105 -> 173305`;
+  - estimated single-task score delta: `+0.239052`.
+
+Generated upload artifacts:
+
+- Single-task ablations:
+  - `outputs/ablation_submissions/task255_shape_pruned_6to12/task255_overrides_EquivOptimized/submission.zip`;
+  - `outputs/ablation_submissions/task101_template_radius02/task101_overrides_EquivOptimized/submission.zip`.
+- Combined two-task package:
+  - `outputs/ablation_submissions/task101_task255_algorithm_pruned/submission.zip`;
+  - replacements: `overrides/task101.onnx`, `overrides/task255.onnx`;
+  - inspected as `hybrid_stack` with `800` models and `400` task IDs;
+  - estimated combined score delta: `+0.596902`, estimated stack score
+    `6349.165404` under the official-static proxy.
+
+Validation commands:
+
+```powershell
+python -m pytest tests\test_task255_override_shape_prune.py
+python -m pytest tests\test_task101_template_radius_prune.py
+python -m src.validate_labelled_splits --model outputs\candidates\task255_override_shape_prune\task255_ShapePruned6To12.onnx --task task\task255.json --report outputs\reports\task255_shape_pruned_6to12_labelled_validation.csv
+python -m src.validate_labelled_splits --model outputs\candidates\task101_radius_prune\task101_TemplateRadius02.onnx --task task\task101.json --report outputs\reports\task101_template_radius02_labelled_validation.csv
+python -m src.official_cost_estimator one --model outputs\candidates\task255_override_shape_prune\task255_ShapePruned6To12.onnx
+python -m src.official_cost_estimator one --model outputs\candidates\task101_radius_prune\task101_TemplateRadius02.onnx
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\task101_task255_algorithm_pruned_candidate_report.csv --output-zip outputs\ablation_submissions\task101_task255_algorithm_pruned\submission.zip --report outputs\reports\task101_task255_algorithm_pruned_merge.csv --task-ids task101,task255 --lanes overrides
+```
+
+Safety:
+
+- `outputs/submission.zip` was not overwritten this round.
+- Recommended online order for attribution: upload `task255` single ablation,
+  then `task101` single ablation, then the combined package if both are
+  non-regressing.
+
+## 2026-06-13 - Promote online-confirmed 6349.16 combined package
+
+- User reported the combined `task101 + task255` algorithm-pruned package scored
+  `6349.16` online.
+- Promoted the exact combined package to:
+  - `outputs/submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - `outputs/submissions/6349_16_task101_task255_algorithm_pruned_submission.zip`.
+- Updated `src.online_result_memory` and rebuilt
+  `outputs/reports/online_result_memory.csv`:
+  - known results: `19`;
+  - new promoted rewrite type:
+    `override_algorithm_branch_prune`;
+  - new design rule: prioritize official-static best-lane cost.
+- Cleaned upload-related generated folders:
+  - `outputs/ablation_submissions` now keeps only
+    `task101_task255_algorithm_pruned`;
+  - `outputs/submissions` now keeps only `submission.zip` and the
+    `6349_16` named copy;
+  - `outputs/candidates/task101_radius_prune` now keeps only
+    `task101_TemplateRadius02.onnx`.
+- Current active submission:
+  - path: `outputs/submission.zip`;
+  - SHA256:
+    `F354A56D06D21B92899BD49DE6AE4D278736C0B469644727CACA978BB7065443`;
+  - inspection: `hybrid_stack`, `800` models, `400` task IDs.
+
+Validation:
+
+```powershell
+python -m src.inspect_submission --zip outputs\submission.zip --layout hybrid_stack
+python -m py_compile src\online_result_memory.py
+python -m src.online_result_memory --report outputs\reports\online_result_memory.csv
+```
+
+## 2026-06-13 - New task255 second-stage branch-prune candidate
+
+- Continued from the online-confirmed `6349.16` hybrid stack without
+  overwriting `outputs/submission.zip`.
+- Re-extracted current stack to `outputs/current_6349_16_stack` and rebuilt
+  the official-static cost report:
+  - report:
+    `outputs/reports/current_6349_16_official_static_costs_20260613.csv`;
+  - valid models: `800/800`;
+  - best-lane proxy score: `6349.165404`;
+  - best-lane proxy cost: `11678766`.
+- High-cost best-lane ranking still starts with `task255`, followed by
+  `task133`, `task158`, `task101`, `task096`, `task286`.
+
+Task255 sweep:
+
+- Current active `task255` override:
+  - official-static cost: `251934`;
+  - official-static task score: `12.563077572571386`;
+  - nodes: `409`;
+  - file size: `42685`.
+- Reused the already online-positive rectangle-branch pruning direction and
+  narrowed the kept search branches:
+  - `short=7..12` failed labelled validation (`221/265`);
+  - `short=6..10`, `6..9`, `6..8`, `6..7`, and `6..6` all passed
+    `265/265`;
+  - `short=6,long=30` failed (`207/265`);
+  - `short=6,long=26` passed `265/265`.
+- Updated `src/task255_override_shape_prune.py` so long-side filtering is a
+  reproducible CLI parameter instead of an ad hoc monkeypatch.
+- Added test coverage in `tests/test_task255_override_shape_prune.py`.
+
+Final candidate:
+
+- model:
+  `outputs/candidates/task255_override_shape_prune_v2/task255_ShapePruned6Long26.onnx`;
+- rule: keep only `6x26` and `26x6` rectangle search branches; leave the
+  downstream corridor-arm logic unchanged;
+- labelled validation:
+  - train: `3/3`;
+  - test: `1/1`;
+  - arc-gen: `261/261`;
+  - total: `265/265`;
+- official-static cost: `251934 -> 135493`;
+- official-static task score: `12.563077572571386 -> 13.183324742549162`;
+- estimated stack proxy score if online-clean:
+  `6349.165404 -> 6349.785651`;
+- nodes: `409 -> 149`;
+- initializer params: `7283 -> 526`;
+- file size: `42685 -> 10289`.
+
+Generated online validation package:
+
+- `outputs/ablation_submissions/task255_shape_pruned_6long26/submission.zip`;
+- replaces only `overrides/task255.onnx`;
+- inspection: `hybrid_stack`, `800` models, `400` task IDs;
+- SHA256:
+  `D646C29D9DF2572E00B770E80E430D587075F1F400B0AE7C2A790643AE4C8336`.
+
+Safety:
+
+- `outputs/submission.zip` remains the online-confirmed `6349.16` package with
+  SHA256
+  `F354A56D06D21B92899BD49DE6AE4D278736C0B469644727CACA978BB7065443`.
+- This candidate is locally strict-valid but not yet online-confirmed; do not
+  promote it until the upload result is known.
+
+Validation:
+
+```powershell
+python -m pytest -q tests\test_task255_override_shape_prune.py
+python -m py_compile src\task255_override_shape_prune.py
+python -m src.task255_override_shape_prune --source outputs\current_6349_16_stack\overrides\task255.onnx --output outputs\candidates\task255_override_shape_prune_v2\task255_ShapePruned6Long26.onnx --short-min 6 --short-max 6 --long-sides 26
+python -m src.validate_labelled_splits --model outputs\candidates\task255_override_shape_prune_v2\task255_ShapePruned6Long26.onnx --task task\task255.json --report outputs\reports\task255_ShapePruned6Long26_labelled_validation.csv
+python -m src.evaluate_onnx_candidate --model outputs\candidates\task255_override_shape_prune_v2\task255_ShapePruned6Long26.onnx --task task\task255.json
+python -m src.official_cost_estimator one --model outputs\candidates\task255_override_shape_prune_v2\task255_ShapePruned6Long26.onnx
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\task255_shape_pruned_6long26_candidate_report.csv --output-zip outputs\ablation_submissions\task255_shape_pruned_6long26\submission.zip --report outputs\reports\task255_shape_pruned_6long26_merge.csv
+python -m src.inspect_submission --zip outputs\ablation_submissions\task255_shape_pruned_6long26\submission.zip --layout hybrid_stack
+git diff --check
+```
+
+## 2026-06-13 - Promote 6349.78 after task255 second-stage online confirmation
+
+- User reported the `task255_shape_pruned_6long26` one-task ablation scored
+  `6349.78` online, matching the predicted stack proxy of `6349.785651`.
+- Promoted the validated ablation package to:
+  - `outputs/submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - `outputs/submissions/6349_78_task255_6long26_submission.zip`.
+- Extracted current stack to `outputs/current_6349_78_stack` and rebuilt the
+  official-static cost report:
+  - report: `outputs/reports/current_6349_78_official_static_costs_20260613.csv`;
+  - valid models: `800/800`;
+  - best-lane proxy score: `6349.785651`;
+  - best-lane proxy cost: `11562325`.
+- Top remaining high-cost best-lane targets:
+  - task133: `191,411` (420 nodes, formula-based mask);
+  - task158: `189,716` (249 nodes, 3-level template matching);
+  - task101: `173,305` (already radius-pruned to R_02);
+  - task096: `157,946` (242 nodes, all-Constants Where/ArgMax);
+  - task286: `147,163` (149 nodes, 59-iteration dilation chain).
+
+### Investigation Results
+
+**task286 dilation pruning**:
+- The model uses 59 MaxPool + 59 Min dilation iterations (reach_0 through reach_58).
+- Train + test labelled cases pass with as few as 19 iterations.
+- Arc-gen cases require all 58 iterations — pruning is not viable.
+
+**Next directions**:
+- task133: 9 Gather offsets may be prunable based on labelled template positions.
+- task158: 3 candidate search levels (pads 2/4/6) may be reducible.
+- task096: Complex Where/ArgMax logic — requires deep algorithm understanding.
+- task367: 24 Gather + 12 Where — compact but may have prunable template set.
+
+Strategy: continue official-static best-lane prioritization; target algorithm
+parameters (iteration counts, candidate set sizes, template search ranges) that
+can be narrowed based on labelled data.

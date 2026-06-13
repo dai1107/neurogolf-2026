@@ -1,0 +1,12 @@
+task_id,model_path,initializer_name,shape,dtype,num_elements,nbytes,pattern,one_hot_axis,row_count,col_count,nonzero_per_row_max,nonzero_per_row_min,row_uniformity,unique_values_count,consumer_ops,downstream_ops,priority_score,rewrite_suggestion
+task009,outputs\reference_6275_flat\task009.onnx,v0,900x4,int64,3600,28800,int_index_table,-1,900,4,3,1,0.8485,16,GatherND,GatherND;MatMul;Reshape;Transpose,14400,"uint8 (from int64, range [0,27])"
+task240,outputs\reference_6275_flat\task240.onnx,scatter_idx,810x4,int64,3240,25920,int_index_table,-1,810,4,3,2,0.8966,14,ScatterND,ScatterND,12960,"uint8 (from int64, range [0,17])"
+task061,outputs\reference_6275_flat\task061.onnx,label_bank,6x18x18,int64,1944,15552,int_index_table,-1,108,18,324,324,1.0000,9,Gather,Gather;OneHot;Pad,7776,"uint8 (from int64, range [1,9])"
+task184,outputs\reference_6275_flat\task184.onnx,out_zero,1x10x30x30,float32,9000,36000,binary_float_table,-1,300,30,0,0,1.0000,1,ScatterND,ScatterND,4500,"RowCollapse: uniform row pattern, dedup rows"
+task240,outputs\reference_6275_flat\task240.onnx,base_bg,1x10x30x30,float32,9000,36000,binary_float_table,-1,300,30,361,361,1.0000,2,ScatterND,ScatterND,4500,"RowCollapse: uniform row pattern, dedup rows"
+task123,outputs\reference_6275_flat\task123.onnx,level_map,30x30,int64,900,7200,int_index_table,-1,30,30,30,29,0.9940,11,Gather,Gather,3600,"uint8 (from int64, range [0,10])"
+task175,outputs\reference_6275_flat\task175.onnx,cast_15,1x1x30x30,int64,900,7200,int_index_table,-1,30,30,334,334,1.0000,11,Add,Add;Mod,3600,"int8 (from int64, range [-1,9])"
+task398,outputs\reference_6275_flat\task398.onnx,RPC,1x1x25x25,int64,625,5000,int_index_table,-1,25,25,624,624,1.0000,49,Equal,And;Equal;Or;Where,2500,"uint8 (from int64, range [0,48])"
+task037,outputs\reference_6275_flat\task037.onnx,identity_conv_sum_group_prefix_anti_w,9x1x10x10,float16,900,1800,one_hot_matrix,-1,90,10,10,10,1.0000,2,Conv,Conv;Mul;Relu,1800,Gather(index_of_1) + Reshape
+task037,outputs\reference_6275_flat\task037.onnx,identity_conv_sum_group_prefix_main_w,9x1x10x10,float16,900,1800,one_hot_matrix,-1,90,10,10,10,1.0000,2,Conv,Conv;Mul;Relu,1800,Gather(index_of_1) + Reshape
+task239,outputs\reference_6275_flat\task239.onnx,col_oh_3d,9x1x30,float16,270,540,one_hot_matrix,-1,9,30,1,1,1.0000,2,Where,MatMul;Reshape;Where,540,Gather(index_of_1) + Reshape

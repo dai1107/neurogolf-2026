@@ -74,8 +74,8 @@ def build_task366_model(task_data: dict, max_cost: int = 50000) -> Optional[onnx
         max_h = max(max_h, ph)
         max_w = max(max_w, pw)
 
-        # Track marker colors
-        p1 = [r[:split_pos] if split_dir=='H' else r[:split_pos] for r in inp[:split_pos if split_dir=='H' else H)] if split_dir=='H' else ...
+        # Marker extraction was left for the full semantic builder; this
+        # placeholder only records panel bounds.
 
     max_h = max(max_h, 15)
     max_w = max(max_w, 17)

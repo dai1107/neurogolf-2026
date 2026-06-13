@@ -16,6 +16,7 @@ from typing import Any
 import onnxruntime as ort
 
 from .arc_io import load_all_tasks
+from .cost_estimator import check_forbidden_ops, estimate_model_cost
 
 
 ort.set_default_logger_severity(3)
@@ -79,6 +80,32 @@ def evaluate_model(model_path: Path, task_path: Path, timeout_seconds: int) -> d
         }
 
 
+def evaluate_trusted_model(model_path: Path) -> dict[str, Any]:
+    """Return structural validation and cost for a known online-clean model."""
+    if not model_path.is_file():
+        return {"valid": False, "failure_reason": "missing_model"}
+
+    report: dict[str, Any] = {"model_path": str(model_path)}
+    try:
+        cost = estimate_model_cost(str(model_path))
+        forbidden = check_forbidden_ops(str(model_path))
+    except Exception as exc:
+        return {**report, "valid": False, "failure_reason": f"trusted_evaluation_exception: {exc}"}
+
+    failure_reasons: list[str] = []
+    if not cost["file_size_ok"]:
+        failure_reasons.append("file_size_exceeds_limit")
+    if not forbidden["passed"]:
+        failure_reasons.append(f"forbidden_ops={forbidden['forbidden_ops_found']}")
+
+    return {
+        **report,
+        **cost,
+        "valid": not failure_reasons,
+        "failure_reason": "; ".join(failure_reasons),
+    }
+
+
 def _choose_candidate(task_id: str, archive: dict[str, Any], current: dict[str, Any]) -> dict[str, Any] | None:
     candidates: list[dict[str, Any]] = []
     if archive.get("valid"):
@@ -98,6 +125,28 @@ def _choose_candidate(task_id: str, archive: dict[str, Any], current: dict[str, 
     )
 
 
+def _choose_forced_candidate(
+    task_id: str,
+    archive: dict[str, Any],
+    current: dict[str, Any],
+    force_archive_task_ids: set[str] | None,
+    force_current_task_ids: set[str] | None,
+) -> dict[str, Any] | None:
+    force_archive = force_archive_task_ids is not None and task_id in force_archive_task_ids
+    force_current = force_current_task_ids is not None and task_id in force_current_task_ids
+    if force_archive and force_current:
+        raise ValueError(f"task cannot be forced to both archive and current: {task_id}")
+    if force_archive:
+        if not archive.get("valid"):
+            raise ValueError(f"forced archive model is invalid for {task_id}: {archive.get('failure_reason')}")
+        return {"source": "archive", **archive}
+    if force_current:
+        if not current.get("valid"):
+            raise ValueError(f"forced current model is invalid for {task_id}: {current.get('failure_reason')}")
+        return {"source": "current", **current}
+    return None
+
+
 def blend_archive_submission(
     data_dir: str,
     archive_dir: str,
@@ -107,9 +156,14 @@ def blend_archive_submission(
     zip_path: str,
     only_task_ids: set[str] | None = None,
     exclude_task_ids: set[str] | None = None,
+    force_archive_task_ids: set[str] | None = None,
+    force_current_task_ids: set[str] | None = None,
     timeout_seconds: int = 120,
+    validation_mode: str = "strict",
 ) -> dict[str, Any]:
     """Validate archive/current candidates, choose lowest-cost valid model, and zip them."""
+    if validation_mode not in {"strict", "trusted"}:
+        raise ValueError(f"validation_mode must be 'strict' or 'trusted', got {validation_mode}")
     tasks = load_all_tasks(data_dir)
     data_root = Path(data_dir)
     archive_root = Path(archive_dir)
@@ -145,9 +199,21 @@ def blend_archive_submission(
             continue
         try:
             task_path = data_root / f"{task_id}.json"
-            archive_report = evaluate_model(archive_root / f"{task_id}.onnx", task_path, timeout_seconds)
-            current_report = evaluate_model(current_root / f"{task_id}.onnx", task_path, timeout_seconds)
-            best = _choose_candidate(task_id, archive_report, current_report)
+            if validation_mode == "strict":
+                archive_report = evaluate_model(archive_root / f"{task_id}.onnx", task_path, timeout_seconds)
+                current_report = evaluate_model(current_root / f"{task_id}.onnx", task_path, timeout_seconds)
+            else:
+                archive_report = evaluate_trusted_model(archive_root / f"{task_id}.onnx")
+                current_report = evaluate_trusted_model(current_root / f"{task_id}.onnx")
+            best = _choose_forced_candidate(
+                task_id,
+                archive_report,
+                current_report,
+                force_archive_task_ids,
+                force_current_task_ids,
+            )
+            if best is None:
+                best = _choose_candidate(task_id, archive_report, current_report)
         except BaseException as exc:  # Keep one bad external model from aborting the audit.
             archive_report = {"valid": False, "failure_reason": f"task_level_exception: {type(exc).__name__}: {exc}"}
             current_report = {"valid": False, "failure_reason": "not_evaluated_after_task_exception"}
@@ -202,6 +268,7 @@ def blend_archive_submission(
         "source_counts": dict(sorted(source_counts.items())),
         "report_path": report_path,
         "zip_path": zip_path,
+        "validation_mode": validation_mode,
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return summary
@@ -217,10 +284,20 @@ def main() -> None:
     parser.add_argument("--zip", dest="zip_path", default="outputs/submission.zip")
     parser.add_argument("--task-ids", default="", help="Optional comma-separated task ids such as task042,task043")
     parser.add_argument("--exclude-task-ids", default="", help="Optional comma-separated task ids to omit from the zip")
+    parser.add_argument("--force-archive-task-ids", default="", help="Comma-separated task ids that must use archive models")
+    parser.add_argument("--force-current-task-ids", default="", help="Comma-separated task ids that must use current models")
     parser.add_argument("--timeout-seconds", type=int, default=120)
+    parser.add_argument(
+        "--validation-mode",
+        choices=["strict", "trusted"],
+        default="strict",
+        help="strict validates train output; trusted compares known online-clean model banks structurally",
+    )
     args = parser.parse_args()
     only_task_ids = {item.strip() for item in args.task_ids.split(",") if item.strip()} or None
     exclude_task_ids = {item.strip() for item in args.exclude_task_ids.split(",") if item.strip()} or None
+    force_archive_task_ids = {item.strip() for item in args.force_archive_task_ids.split(",") if item.strip()} or None
+    force_current_task_ids = {item.strip() for item in args.force_current_task_ids.split(",") if item.strip()} or None
     blend_archive_submission(
         data_dir=args.data_dir,
         archive_dir=args.archive_dir,
@@ -230,7 +307,10 @@ def main() -> None:
         zip_path=args.zip_path,
         only_task_ids=only_task_ids,
         exclude_task_ids=exclude_task_ids,
+        force_archive_task_ids=force_archive_task_ids,
+        force_current_task_ids=force_current_task_ids,
         timeout_seconds=args.timeout_seconds,
+        validation_mode=args.validation_mode,
     )
 
 
