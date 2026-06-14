@@ -1,7 +1,8 @@
-"""Prune task158 template levels 2 and 3.
+"""Prune task158 template matching levels.
 
-Removes the 8 ConvTranspose nodes (4 directions × 2 levels) and their
-upstream dependencies, keeping only level-1 (3×3) template matching.
+The task158 override has three template search levels. This script can keep
+any subset of those levels, then removes the unused ConvTranspose branches and
+their dead upstream dependencies.
 """
 
 import argparse
@@ -15,40 +16,54 @@ import onnx
 from onnx import helper, checker
 
 
-def prune_levels(source_path: str, output_path: str):
-    """Remove levels 2 and 3 from the task158 model.
+LEVELS = (1, 2, 3)
+DIRECTIONS = ("tlbr", "brtl", "trbl", "bltr")
 
-    Strategy: only remove the ConvTranspose nodes for levels 2/3,
-    update the Max combine node, then let the ONNX framework handle
-    dead-code cleanup naturally.
+
+def parse_keep_levels(raw: str) -> tuple[int, ...]:
+    """Parse a comma-separated level list such as ``1,3``."""
+    levels = tuple(sorted({int(x) for x in raw.split(",") if x.strip()}))
+    if not levels or any(level not in LEVELS for level in levels):
+        raise ValueError(f"keep levels must be a non-empty subset of {LEVELS}: {raw!r}")
+    return levels
+
+
+def prune_levels(source_path: str, output_path: str, keep_levels: tuple[int, ...] = (1,)):
+    """Remove template levels not present in ``keep_levels``.
+
+    Strategy: remove the ConvTranspose nodes for unwanted levels, update the
+    Max combine node, then iteratively remove dead nodes and unused
+    initializers.
     """
+    keep_level_set = set(keep_levels)
+    remove_level_set = set(LEVELS) - keep_level_set
+
     m = onnx.load(source_path)
     graph = m.graph
 
-    # 1. Remove ConvTranspose nodes for levels 2 and 3
+    # 1. Remove ConvTranspose nodes for pruned levels.
     removed_outputs = set()
     nodes_to_keep = []
     for n in graph.node:
         if n.op_type == "ConvTranspose":
             for o in n.output:
-                if o.endswith("_2") or o.endswith("_3"):
+                if any(o.endswith(f"_{level}") for level in remove_level_set):
                     removed_outputs.add(o)
                     break
             else:
                 nodes_to_keep.append(n)
                 continue
-            # Skip level 2/3 ConvTranspose
+            # Skip pruned level ConvTranspose.
         else:
             nodes_to_keep.append(n)
 
     print(f"Removed {len(graph.node) - len(nodes_to_keep)} ConvTranspose nodes")
 
-    # 2. Update the Max node to only take level-1 inputs
+    # 2. Update the Max node to only take kept level paint tensors.
     level1_paints = [
-        "paint_crop_tlbr_1",
-        "paint_crop_brtl_1",
-        "paint_crop_trbl_1",
-        "paint_crop_bltr_1",
+        f"paint_crop_{direction}_{level}"
+        for level in keep_levels
+        for direction in DIRECTIONS
     ]
     for n in nodes_to_keep:
         if n.op_type == "Max" and "paint_val" in n.output:
@@ -57,11 +72,12 @@ def prune_levels(source_path: str, output_path: str):
             print(f"Updated Max node: {old_count} -> {len(n.input)} inputs")
             break
 
-    # 3. Remove level 2/3 kernel initializers
-    removed_init_patterns = [
-        "ker_tlbr_2", "ker_brtl_2", "ker_trbl_2", "ker_bltr_2",
-        "ker_tlbr_3", "ker_brtl_3", "ker_trbl_3", "ker_bltr_3",
-    ]
+    # 3. Remove kernel initializers for pruned levels.
+    removed_init_patterns = {
+        f"ker_{direction}_{level}"
+        for level in remove_level_set
+        for direction in DIRECTIONS
+    }
     kept_inits = []
     for init in graph.initializer:
         if init.name in removed_init_patterns:
@@ -177,16 +193,24 @@ def validate_model(model_path: str, task_path: str) -> bool:
 def main():
     parser = argparse.ArgumentParser(description="Prune task158 levels")
     parser.add_argument("--source", default="outputs/current_6349_78_stack/overrides/task158.onnx")
-    parser.add_argument("--output", default="outputs/candidates/task158_level_prune/task158_Level1Only.onnx")
+    parser.add_argument("--output", default="")
     parser.add_argument("--task", default="task/task158.json")
+    parser.add_argument("--keep-levels", default="1")
     parser.add_argument("--validate", action="store_true")
     args = parser.parse_args()
 
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
-    prune_levels(args.source, args.output)
+    keep_levels = parse_keep_levels(args.keep_levels)
+    if args.output:
+        output = args.output
+    else:
+        suffix = "".join(str(level) for level in keep_levels)
+        output = f"outputs/candidates/task158_level_prune/task158_KeepLevels{suffix}.onnx"
+
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+    prune_levels(args.source, output, keep_levels)
 
     if args.validate:
-        ok = validate_model(args.output, args.task)
+        ok = validate_model(output, args.task)
         print(f"\nValidation: {'PASSED' if ok else 'FAILED'}")
         if not ok:
             sys.exit(1)

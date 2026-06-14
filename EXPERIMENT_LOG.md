@@ -6475,3 +6475,553 @@ Top candidates for reducing tensor memory:
 - task128 (28 nodes, 95K cost): (10,30,30) M matrix from broadcast Equal
 - task251 (53 nodes, 100K cost): large intermediate tensors from 20 params
 - task118 (66 nodes, 105K cost): MaxPool outputs with large spatial dims
+
+## 2026-06-14 - Post-6349.78 calibration and task367/task251 follow-up
+
+User feedback:
+
+- Online score for the promoted `task255_shape_pruned_6long26` package was
+  `6349.78`.
+- This matches the local official-static best-lane proxy `6349.785651`.
+- Interpretation: the proxy is now empirically calibrated for the current
+  hybrid stack and cost-driven branch pruning. It is still not a substitute for
+  online ablation of semantic rewrites.
+
+### task367: ext-probe subset pruning
+
+Baseline:
+
+- model: `outputs/current_6349_78_stack/overrides/task367.onnx`
+- official-static cost: `141356`
+- task score: `13.140963189954599`
+- nodes: `135`
+- file size: `6300`
+
+Rejected no-ext experiment:
+
+```powershell
+python -m src.official_cost_estimator one --model outputs\candidates\task367_prune_ext\task367_NoExtCheck.onnx
+python -m src.validate_labelled_splits --model outputs\candidates\task367_prune_ext\task367_NoExtCheck.onnx --task task\task367.json --report outputs\reports\task367_NoExtCheck_labelled_validation.csv
+```
+
+Result:
+
+- cost: `113767`
+- labelled validation: `140/266`
+- train/test: `0/3`, `0/1`
+- decision: reject.
+
+Coverage analysis:
+
+- Removing `no_ext` created `1516` false-positive cells on labelled data.
+- Per-probe coverage:
+  - `ext_a`: `57`
+  - `ext_b`: `395`
+  - `ext_c`: `306`
+  - `ext_d`: `592`
+  - `ext_e`: `50`
+  - `ext_f`: `390`
+  - `ext_g`: `224`
+  - `ext_h`: `580`
+- Minimum labelled-covering subsets:
+  - `ext_a,ext_b,ext_d,ext_f,ext_g,ext_h`
+  - `ext_b,ext_c,ext_d,ext_f,ext_g,ext_h`
+
+Validated candidates:
+
+```powershell
+python -m src.validate_labelled_splits --model outputs\candidates\task367_ext_subset\task367_ExtSubset_1_abdfgh.onnx --task task\task367.json --report outputs\reports\task367_ExtSubset_1_abdfgh_labelled_validation.csv
+python -m src.validate_labelled_splits --model outputs\candidates\task367_ext_subset\task367_ExtSubset_2_bcdfgh.onnx --task task\task367.json --report outputs\reports\task367_ExtSubset_2_bcdfgh_labelled_validation.csv
+python -m src.official_cost_estimator one --model outputs\candidates\task367_ext_subset\task367_ExtSubset_1_abdfgh.onnx
+python -m src.official_cost_estimator one --model outputs\candidates\task367_ext_subset\task367_ExtSubset_2_bcdfgh.onnx
+```
+
+Result for both candidates:
+
+- labelled validation: `266/266`
+- cost: `139420`
+- task score: `13.15475376095961`
+- delta: `-1936` cost, `+0.013790571005010577` task score
+- nodes: `133`
+- file size: `6218`
+
+Built ablation:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\task367_ext_subset_candidate_report.csv --output-zip outputs\ablation_submissions\task367_extsubset6_abdfgh_20260614\submission.zip --report outputs\reports\task367_extsubset6_abdfgh_merge_report.csv --task-ids task367 --lanes overrides
+python -m src.inspect_submission --zip outputs\ablation_submissions\task367_extsubset6_abdfgh_20260614\submission.zip --layout hybrid_stack
+```
+
+Package:
+
+- `outputs/ablation_submissions/task367_extsubset6_abdfgh_20260614/submission.zip`
+- replaces only `overrides/task367.onnx`
+- inspection passed: `800` ONNX models, `400` task IDs
+- predicted total proxy score: `6349.799441571005`
+
+Decision:
+
+- Keep as online one-task ablation candidate.
+- Do not promote until the online result confirms no hidden semantic regression.
+
+### task251: reach-depth pruning
+
+Generated shorter flood-fill candidates by replacing final `not_reach = 1-r7`
+with `1-rN`, then dead-pruning:
+
+| candidate | cost | labelled |
+| --- | ---: | ---: |
+| R0 | 62780 | 1/266 |
+| R1 | 68180 | 4/266 |
+| R2 | 73580 | 36/266 |
+| R3 | 78980 | 93/266 |
+| R4 | 84380 | 159/266 |
+| R5 | 89780 | 259/266 |
+| R6 | 95180 | 265/266 |
+| R7 current | 100580 | 266/266 |
+
+R6 failure:
+
+- split: `arc-gen`
+- case index: `255`
+- mismatched cells: `2`
+- first mismatch: expected `0`, actual `1` at row `6`, col `4`
+- interpretation: the seventh propagation step is needed to mark a narrow
+  outside-connected region as reachable.
+
+Decision:
+
+- Reject all shorter reach candidates.
+
+### task233 and task118 checks
+
+- task233 historical combo/table-prune candidates were re-estimated with the
+  official-static proxy. They are all much worse than current `124902` because
+  they introduce huge static tensors; reject.
+- task118 was inspected. Removing the full `x16` cast would require equivalent
+  f32 channel-slice and reduce intermediates, so the static memory saving is
+  neutral or negative. No candidate built.
+
+## 2026-06-14 - Online 6349.79 promotion and terminal output Cast pruning
+
+User feedback:
+
+- The task367 `abdfgh` ext-subset ablation scored `6349.79` online.
+- This matches the local proxy `6349.799441571005` within leaderboard display
+  precision.
+
+Promotion:
+
+```powershell
+Copy-Item -LiteralPath outputs\ablation_submissions\task367_extsubset6_abdfgh_20260614\submission.zip -Destination outputs\submission.zip -Force
+Copy-Item -LiteralPath outputs\ablation_submissions\task367_extsubset6_abdfgh_20260614\submission.zip -Destination outputs\submissions\submission.zip -Force
+Copy-Item -LiteralPath outputs\ablation_submissions\task367_extsubset6_abdfgh_20260614\submission.zip -Destination outputs\submissions\6349_79_task367_extsubset6_submission.zip -Force
+```
+
+Current baseline:
+
+- `outputs/submission.zip`
+- SHA256:
+  `2FDCF83B57E948A6B609FF8DB1DB4467C6FFA780D4AC4D8DD7E83A05B98C174B`
+- extracted stack: `outputs/current_6349_79_stack`
+- cost report:
+  `outputs/reports/current_6349_79_official_static_costs_20260614.csv`
+- valid models: `800/800`
+- best-lane proxy: `6349.799442`
+- best-lane cost: `11560389`
+
+### Terminal output Cast prune
+
+Observation:
+
+- Several override graphs end with a terminal Cast:
+  `Cast(source_tensor) -> output`.
+- If `source_tensor` is produced by exactly one node and only consumed by that
+  terminal Cast, the producer can emit canonical `output` directly.
+- This removes one full-size intermediate tensor from the official-static
+  memory cost.
+- Output dtype changes to bool/fp16/int depending on the source tensor, but
+  current accepted submissions already contain non-float outputs and local grid
+  decoding is unchanged.
+
+Reproducibility:
+
+- Added `src/terminal_output_cast_prune.py`.
+- Smoke test:
+
+```powershell
+python -m src.terminal_output_cast_prune --stack-dir outputs\current_6349_79_stack --output-dir outputs\candidates\terminal_output_cast_prune_repro_smoke --report outputs\reports\terminal_output_cast_prune_repro_smoke.csv --lanes overrides --task-ids task209
+python -m src.official_cost_estimator one --model outputs\candidates\terminal_output_cast_prune_repro_smoke\task209_overrides_TerminalOutputCastPruned.onnx
+python -m py_compile src\terminal_output_cast_prune.py
+```
+
+Smoke result:
+
+- task209: `113834 -> 104834`
+- delta: `-9000`
+
+Batch generation:
+
+- output dir: `outputs/candidates/terminal_output_cast_prune_6349_79`
+- candidate report:
+  `outputs/reports/terminal_output_cast_prune_6349_79_candidate_report.csv`
+
+Validation:
+
+- Strict labelled validation passed for:
+  - `task018`: `266/266`
+  - `task096`: `266/266`
+  - `task138`: `266/266`
+  - `task191`: `267/267`
+  - `task192`: `265/265`
+  - `task203`: `267/267`
+  - `task206`: `266/266`
+  - `task209`: `266/266`
+  - `task215`: `265/265`
+  - `task233`: `266/266`
+  - `task243`: `265/265`
+  - `task255`: `265/265`
+  - `task285`: `265/265`
+  - `task328`: `267/267`
+  - `task376`: `39/39`
+- Skipped:
+  - `task080`: labelled grid shape `31x31` exceeds local 30x30 validator/model
+    path.
+  - `task366`: labelled grid width `32` exceeds local 30x30 validator/model
+    path.
+
+Cost deltas for packaged tasks:
+
+| task | cost before | cost after | delta |
+| --- | ---: | ---: | ---: |
+| task018 | 112358 | 103358 | -9000 |
+| task096 | 157946 | 139946 | -18000 |
+| task138 | 47895 | 38895 | -9000 |
+| task191 | 67986 | 58986 | -9000 |
+| task192 | 51968 | 33968 | -18000 |
+| task203 | 53188 | 44188 | -9000 |
+| task206 | 61386 | 52386 | -9000 |
+| task209 | 113834 | 104834 | -9000 |
+| task215 | 38094 | 29094 | -9000 |
+| task233 | 124902 | 115902 | -9000 |
+| task243 | 68713 | 59713 | -9000 |
+| task255 | 135493 | 117493 | -18000 |
+| task285 | 123734 | 114734 | -9000 |
+| task328 | 67093 | 58093 | -9000 |
+| task376 | 23412 | 14412 | -9000 |
+
+Batch package:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\terminal_output_cast_prune_6349_79_candidate_report.csv --output-zip outputs\ablation_submissions\terminal_output_cast_prune_15_20260614\submission.zip --report outputs\reports\terminal_output_cast_prune_15_20260614_merge_report.csv --lanes overrides
+python -m src.inspect_submission --zip outputs\ablation_submissions\terminal_output_cast_prune_15_20260614\submission.zip --layout hybrid_stack
+```
+
+Result:
+
+- `outputs/ablation_submissions/terminal_output_cast_prune_15_20260614/submission.zip`
+- SHA256:
+  `66FBF4E1D918264C5E923627E7576D682C7DC362B25F6A10F4419DBB85862CA8`
+- merged replacements: `15`
+- total cost delta: `-162000`
+- predicted score delta: `+2.7381083448624217`
+- predicted total proxy: `6352.537549915868`
+- inspection passed: `hybrid_stack`, `800` models, `400` task IDs
+
+Decision:
+
+- Submit this as a batch ablation.
+- Do not promote until online confirms the output dtype changes are accepted
+  with the predicted score.
+
+## 2026-06-14 - Online 6352.53 promotion and remaining terminal-cast probes
+
+User feedback:
+
+- The 15-task terminal output Cast prune batch scored `6352.53` online.
+- This confirms the output dtype change is accepted by the online validator for
+  bool/fp16/u8 output tensors.
+
+Promotion:
+
+```powershell
+Copy-Item -LiteralPath outputs\ablation_submissions\terminal_output_cast_prune_15_20260614\submission.zip -Destination outputs\submission.zip -Force
+Copy-Item -LiteralPath outputs\ablation_submissions\terminal_output_cast_prune_15_20260614\submission.zip -Destination outputs\submissions\submission.zip -Force
+Copy-Item -LiteralPath outputs\ablation_submissions\terminal_output_cast_prune_15_20260614\submission.zip -Destination outputs\submissions\6352_53_terminal_output_cast_prune_15_submission.zip -Force
+```
+
+Current baseline:
+
+- `outputs/submission.zip`
+- SHA256:
+  `66FBF4E1D918264C5E923627E7576D682C7DC362B25F6A10F4419DBB85862CA8`
+- extracted stack: `outputs/current_6352_53_stack`
+- cost report:
+  `outputs/reports/current_6352_53_official_static_costs_20260614.csv`
+- valid models: `800/800`
+- best-lane proxy: `6352.53755`
+- best-lane cost: `11398389`
+
+### Remaining terminal output Cast candidates
+
+Re-ran:
+
+```powershell
+python -m src.terminal_output_cast_prune --stack-dir outputs\current_6352_53_stack --output-dir outputs\candidates\terminal_output_cast_prune_6352_53 --report outputs\reports\terminal_output_cast_prune_6352_53.csv --lanes overrides
+```
+
+Remaining valid graph rewrites:
+
+| task | cost before | cost after | delta | predicted total |
+| --- | ---: | ---: | ---: | ---: |
+| task080 | 41855 | 32855 | -9000 | 6352.77965723963 |
+| task366 | 98352 | 89352 | -9000 | 6352.633519170794 |
+
+Strict labelled validation remains blocked:
+
+- `task080`: local task JSON has a `31x31` grid, exceeding the current
+  `30x30` validator/model input.
+- `task366`: local task JSON has width `32`, exceeding the current `30x30`
+  validator/model input.
+
+Random equivalence probe:
+
+- Compared source and pruned model on `50` generated `30x30` one-hot inputs for
+  each task.
+- Decoded argmax outputs matched exactly.
+- Max abs diff after casting candidate output back to float32: `0.0`.
+- Candidate output dtype: bool.
+
+Built online probe packages:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\terminal_output_cast_prune_2_probe_candidate_report.csv --output-zip outputs\ablation_submissions\terminal_output_cast_probe_task080_20260614\submission.zip --report outputs\reports\terminal_output_cast_probe_task080_merge.csv --task-ids task080 --lanes overrides
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\terminal_output_cast_prune_2_probe_candidate_report.csv --output-zip outputs\ablation_submissions\terminal_output_cast_probe_task366_20260614\submission.zip --report outputs\reports\terminal_output_cast_probe_task366_merge.csv --task-ids task366 --lanes overrides
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\terminal_output_cast_prune_2_probe_candidate_report.csv --output-zip outputs\ablation_submissions\terminal_output_cast_probe_task080_task366_20260614\submission.zip --report outputs\reports\terminal_output_cast_probe_task080_task366_merge.csv --lanes overrides
+```
+
+Package hashes:
+
+- task080 only:
+  `73A0BDCA3F71F445791FE2053ED51C6EDBC755F575E7086894D7C934F0E5C539`
+- task366 only:
+  `A9CC1BE8C9AF32A3D03EFF419D507C30068EBD1496ADAAA1459AB3739C33D4A5`
+- combined:
+  `245AFBC24D789D9F707FC53511B2252A1CE053BB98806BA9DA53CD80C2CBAFAB`
+
+Decision:
+
+- Treat as online probes only. Do not promote until upload results confirm,
+  because labelled strict validation is blocked.
+
+### Other scans
+
+Graph-only optimizer:
+
+```powershell
+python -m src.hybrid_stack_optimizer optimize --stack-dir outputs\current_6352_53_stack --task-dir task --output-dir outputs\candidates\current_6352_53_graphonly --report outputs\reports\current_6352_53_graphonly_candidates.csv --lanes overrides --passes dead,const-gather,dedup --no-equivalence-validation
+```
+
+Result:
+
+- one candidate: `task358`
+- cost delta: `-9`
+- too small to package.
+
+task158 branch prune:
+
+- Built 12 candidates removing one `paint_crop_{direction}_{level}` branch.
+- Theoretical deltas ranged from `-6184` to `-8064`.
+- All 12 failed labelled validation:
+  - best removals reached only `256/266`;
+  - no branch is safely removable.
+
+Input dtype:
+
+- Scanned current stack graph inputs.
+- All `800/800` models use float32 input.
+- Input dtype pruning is not pursued; unlike output dtype, there is no online
+  proof that non-float input tensors are accepted.
+
+## 2026-06-14 - No-op and Pad-input-Cast graph pruning
+
+User feedback:
+
+- User confirmed the current promoted package scored `6352.53` online.
+- This further calibrates the best-lane official-static proxy for graph and
+  output-dtype cost changes.
+
+### Exact no-op pruning
+
+Added:
+
+- `src/noop_node_prune.py`
+
+Scope:
+
+- Removes only exact no-op graph nodes:
+  - `Identity`;
+  - same-dtype `Cast`;
+  - same-shape `Reshape`;
+  - identity `Transpose`;
+  - shape-preserving `Add(0)`, `Mul(1)`, `Sub(X,0)`.
+
+Commands:
+
+```powershell
+python -m py_compile src\noop_node_prune.py
+python -m src.noop_node_prune --stack-dir outputs\current_6352_53_stack --output-dir outputs\candidates\current_6352_53_noop_node_prune --report outputs\reports\current_6352_53_noop_node_prune.csv --lanes overrides
+```
+
+Result:
+
+- valid candidates: `16`
+- total official-static cost delta: `-3161`
+- tasks:
+  `task005`, `task013`, `task018`, `task034`, `task054`, `task071`,
+  `task076`, `task077`, `task101`, `task173`, `task174`, `task185`,
+  `task191`, `task198`, `task285`, `task370`
+
+Validation:
+
+```powershell
+python -m src.validate_labelled_splits --model outputs\candidates\current_6352_53_noop_node_prune\task005_overrides_NoopNodePruned.onnx --task task\task005.json --report outputs\reports\noop_node_prune_labelled\task005_labelled_validation.csv
+python -m src.validate_labelled_splits --model outputs\candidates\current_6352_53_noop_node_prune\task013_overrides_NoopNodePruned.onnx --task task\task013.json --report outputs\reports\noop_node_prune_labelled\task013_labelled_validation.csv
+```
+
+- Full labelled validation completed for `task005` and `task013`, both passed.
+- Full labelled validation for all `16` was stopped after timeout because
+  several tasks have `260+` arc-gen cases.
+- Source-vs-candidate ORT equivalence was then run for all `16` candidates:
+  - report: `outputs/reports/current_6352_53_noop_node_prune_equivalence.csv`;
+  - passed: `16/16`;
+  - max abs diff: `0.0`.
+
+Base-lane checks:
+
+```powershell
+python -m src.terminal_output_cast_prune --stack-dir outputs\current_6352_53_stack --output-dir outputs\candidates\terminal_output_cast_prune_6352_53_base --report outputs\reports\terminal_output_cast_prune_6352_53_base.csv --lanes base_submission
+python -m src.noop_node_prune --stack-dir outputs\current_6352_53_stack --output-dir outputs\candidates\current_6352_53_noop_node_prune_base_winners --report outputs\reports\current_6352_53_noop_node_prune_base_winners.csv --lanes base_submission --task-ids <66-current-base-winners>
+```
+
+- Base terminal-Cast scan found `7` candidates, but best-lane impact was `0`
+  because overrides remained cheaper for those tasks.
+- No-op scan on the `66` current base-winning tasks found `0` candidates.
+
+No-op package:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\current_6352_53_noop_node_prune.csv --output-zip outputs\ablation_submissions\noop_node_prune_16_20260614\submission.zip --report outputs\reports\noop_node_prune_16_20260614_merge.csv --lanes overrides
+```
+
+- SHA256:
+  `959282968E0E62F1C2D5208BC05BAD9E01FFBC0B35221D27EEDCE34E74ABE726`
+- predicted proxy: `6352.583353653989`
+
+### Pad-input-Cast pruning
+
+Added:
+
+- `src/pad_input_cast_prune.py`
+
+Pattern:
+
+```text
+Cast(source) -> pad_data
+Pad(pad_data, ...) -> output
+```
+
+The pass removes the Cast when `Pad` can consume `source` directly and keeps
+the graph output named `output`.
+
+Commands:
+
+```powershell
+python -m py_compile src\pad_input_cast_prune.py
+python -m src.pad_input_cast_prune --stack-dir outputs\current_6352_53_stack --output-dir outputs\candidates\current_6352_53_pad_input_cast_prune --report outputs\reports\current_6352_53_pad_input_cast_prune.csv --lanes overrides --task-ids task075,task130,task217,task286,task308,task316,task319,task368,task377
+```
+
+Result:
+
+- valid candidates: `2`
+- tasks:
+  - `task075`: `18591 -> 13911`, delta `-4680`;
+  - `task130`: `4146 -> 3786`, delta `-360`.
+- rejected candidates:
+  `task217`, `task286`, `task308`, `task316`, `task319`, `task368`,
+  `task377` due ONNX shape/type inference constraints for the rewritten Pad.
+
+Validation:
+
+```powershell
+python -m src.validate_labelled_splits --model outputs\candidates\current_6352_53_pad_input_cast_prune\task075_overrides_PadInputCastPruned.onnx --task task\task075.json --report outputs\reports\pad_input_cast_prune_labelled\task075_labelled_validation.csv
+python -m src.validate_labelled_splits --model outputs\candidates\current_6352_53_pad_input_cast_prune\task130_overrides_PadInputCastPruned.onnx --task task\task130.json --report outputs\reports\pad_input_cast_prune_labelled\task130_labelled_validation.csv
+```
+
+- `task075`: `265/265` labelled cases passed.
+- `task130`: `265/265` labelled cases passed.
+- Source-vs-candidate ORT equivalence:
+  - report: `outputs/reports/current_6352_53_pad_input_cast_prune_equivalence.csv`;
+  - passed: `2/2`;
+  - `task075`: `58` inputs, max abs diff `0.0`;
+  - `task130`: `57` inputs, max abs diff `0.0`.
+
+Pad-only package:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\current_6352_53_pad_input_cast_prune.csv --output-zip outputs\ablation_submissions\pad_input_cast_prune_2_20260614\submission.zip --report outputs\reports\pad_input_cast_prune_2_20260614_merge.csv --lanes overrides
+```
+
+- SHA256:
+  `9557F5DCEA653D07C46CB7F73F3791F47E8A84CF230EFA5B90D485EE8EA0EFBD`
+- predicted proxy: `6352.918381569714`
+
+### Combined packages
+
+Strict/local-validated combined package:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\ablation_submissions\noop_node_prune_16_20260614\submission.zip --candidate-report outputs\reports\current_6352_53_pad_input_cast_prune.csv --output-zip outputs\ablation_submissions\noop16_pad_input_cast2_20260614\submission.zip --report outputs\reports\noop16_pad_input_cast2_20260614_merge.csv --lanes overrides
+python -m src.inspect_submission --zip outputs\ablation_submissions\noop16_pad_input_cast2_20260614\submission.zip --layout hybrid_stack
+```
+
+- replacements: `18`
+- best-lane cost: `11390188`
+- predicted proxy: `6352.964185313786`
+- SHA256:
+  `4DF8B5FF7FCB705FBCEACAB30107D678F5F4D5757B77E0097CB2B3D338229CC3`
+- inspection: passed, `800` models, `400` task IDs.
+
+Higher-risk combined probe:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\ablation_submissions\noop16_pad_input_cast2_20260614\submission.zip --candidate-report outputs\reports\terminal_output_cast_prune_2_probe_candidate_report.csv --output-zip outputs\ablation_submissions\noop16_pad2_terminal080366_probe_20260614\submission.zip --report outputs\reports\noop16_pad2_terminal080366_probe_20260614_merge.csv --lanes overrides
+python -m src.inspect_submission --zip outputs\ablation_submissions\noop16_pad2_terminal080366_probe_20260614\submission.zip --layout hybrid_stack
+```
+
+- replacements: `20`
+- best-lane cost: `11372188`
+- predicted proxy: `6353.302261892474`
+- SHA256:
+  `F496FBB322EF0111C17C838D13E2D9A0E6FDC36F53AFCB46E75BAA47B83FD05D`
+- inspection: passed, `800` models, `400` task IDs.
+- Decision: still treat this as a probe because it includes `task080` and
+  `task366`, whose strict labelled validation remains blocked by local
+  `>30x30` task grids.
+
+### Checks
+
+```powershell
+python -m py_compile src\noop_node_prune.py src\pad_input_cast_prune.py src\terminal_output_cast_prune.py src\task158_level_prune.py
+git diff --check
+```
+
+- `py_compile` passed.
+- `git diff --check` reported only existing LF-to-CRLF warnings for markdown and
+  `src/task158_level_prune.py`; no whitespace errors.
+
+Current baseline:
+
+- `outputs/submission.zip` remains the online-confirmed `6352.53` package.
+- Do not promote either new package to `outputs/submission.zip` until the user
+  chooses a package to submit and reports the online result.

@@ -3134,3 +3134,308 @@ git diff --check
 Strategy: continue official-static best-lane prioritization; target algorithm
 parameters (iteration counts, candidate set sizes, template search ranges) that
 can be narrowed based on labelled data.
+
+## 2026-06-14 - Continue from online-confirmed 6349.78 and build task367 ablation
+
+- User confirmed the last uploaded package scored `6349.78` online and became
+  the official answer. This matches the local best-lane proxy
+  `6349.785651`.
+- Calibration conclusion:
+  - the current `official_static_cost` best-lane proxy is strongly validated
+    for this stack and for cost/memory branch-prune style changes;
+  - this is not universal proof for arbitrary semantic rewrites, so semantic
+    candidates still need one-task online ablation before promotion.
+
+### task367 ext-subset pruning
+
+- Current online-confirmed override:
+  - model: `outputs/current_6349_78_stack/overrides/task367.onnx`;
+  - official-static cost: `141356`;
+  - task score: `13.140963189954599`;
+  - nodes: `135`;
+  - file size: `6300`.
+- Tested unsafe full removal of the `no_ext` branch:
+  - candidate: `outputs/candidates/task367_prune_ext/task367_NoExtCheck.onnx`;
+  - cost: `113767`;
+  - labelled validation: `140/266`;
+  - decision: rejected.
+- Analysed no-ext false positives and the eight ext probes
+  `ext_a..ext_h`.
+  - false-positive cells from no-ext candidate: `1516`;
+  - all eight probes cover all false positives;
+  - minimum labelled-covering subsets have six probes.
+- Best validated subsets:
+  - `ext_a,ext_b,ext_d,ext_f,ext_g,ext_h`;
+  - `ext_b,ext_c,ext_d,ext_f,ext_g,ext_h`.
+- Selected `abdfgh` candidate:
+  - model: `outputs/candidates/task367_ext_subset/task367_ExtSubset_1_abdfgh.onnx`;
+  - labelled validation: `266/266`
+    (`train 3/3`, `test 1/1`, `arc-gen 262/262`);
+  - official-static cost: `139420`;
+  - task score: `13.15475376095961`;
+  - cost delta: `-1936`;
+  - predicted stack proxy: `6349.799441571005`;
+  - file size: `6218`.
+- Built one-task ablation package:
+  - `outputs/ablation_submissions/task367_extsubset6_abdfgh_20260614/submission.zip`;
+  - replaces only `overrides/task367.onnx`;
+  - inspection: `hybrid_stack`, `800` models, `400` task IDs;
+  - merge report:
+    `outputs/reports/task367_extsubset6_abdfgh_merge_report.csv`.
+
+Safety:
+
+- This is a small semantic prune, not a graph-equivalent rewrite. It passed all
+  labelled splits, but it should be online-tested as a one-task ablation before
+  any promotion to `outputs/submission.zip`.
+- Current official `outputs/submission.zip` was not overwritten.
+
+### Other task checks
+
+- task158 level pruning:
+  - swept keep-level subsets `1`, `2`, `3`, `1,2`, `1,3`, `2,3`,
+    `1,2,3`;
+  - only `1,2,3` passes `266/266`, so no valid level pruning.
+- task133:
+  - all colors `1..9`, all block sizes `1..4`, and all template offsets are
+    used in labelled data;
+  - no safe color/offset pruning found.
+- task096:
+  - high memory comes from required static 30x30 output plus many 11x11
+    intermediates;
+  - no low-risk shape/dtype change found.
+- task233:
+  - old combo/table prune candidates are much worse under the official-static
+    proxy, with costs in the millions versus current `124902`;
+  - decision: reject those historical candidates.
+- task251 reach pruning:
+  - generated `R0..R6` candidates from the current `R7` flood-fill chain;
+  - costs ranged from `62780` to `95180`;
+  - `R6` reached `265/266` but failed one arc-gen case with two extra filled
+    cells;
+  - decision: reject all shorter reach candidates.
+
+Validation commands run:
+
+```powershell
+python -m src.validate_labelled_splits --model outputs\candidates\task367_ext_subset\task367_ExtSubset_1_abdfgh.onnx --task task\task367.json --report outputs\reports\task367_ExtSubset_1_abdfgh_labelled_validation.csv
+python -m src.validate_labelled_splits --model outputs\candidates\task367_ext_subset\task367_ExtSubset_2_bcdfgh.onnx --task task\task367.json --report outputs\reports\task367_ExtSubset_2_bcdfgh_labelled_validation.csv
+python -m src.official_cost_estimator one --model outputs\candidates\task367_ext_subset\task367_ExtSubset_1_abdfgh.onnx
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\task367_ext_subset_candidate_report.csv --output-zip outputs\ablation_submissions\task367_extsubset6_abdfgh_20260614\submission.zip --report outputs\reports\task367_extsubset6_abdfgh_merge_report.csv --task-ids task367 --lanes overrides
+python -m src.inspect_submission --zip outputs\ablation_submissions\task367_extsubset6_abdfgh_20260614\submission.zip --layout hybrid_stack
+```
+
+## 2026-06-14 - Promote online-confirmed 6349.79 and build terminal-cast batch
+
+- User reported the task367 ext-subset ablation scored `6349.79` online.
+- Promoted that package to:
+  - `outputs/submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - `outputs/submissions/6349_79_task367_extsubset6_submission.zip`.
+- Current promoted submission SHA256:
+  `2FDCF83B57E948A6B609FF8DB1DB4467C6FFA780D4AC4D8DD7E83A05B98C174B`.
+- Extracted current stack to `outputs/current_6349_79_stack`.
+- Rebuilt current cost report:
+  - `outputs/reports/current_6349_79_official_static_costs_20260614.csv`;
+  - valid models: `800/800`;
+  - best-lane proxy score: `6349.799442`;
+  - best-lane proxy cost: `11560389`.
+
+### Terminal Output Cast Prune
+
+Identified a graph-equivalent cost pattern:
+
+- final node is `Cast(source_tensor) -> output`;
+- `source_tensor` has shape `[1,10,30,30]` and no non-terminal consumers;
+- renaming the source producer output to canonical `output` removes one full
+  intermediate tensor from official-static memory;
+- output dtype changes to the source dtype, but current accepted submissions
+  already contain bool/fp16/int outputs, and local grid decoding is unchanged.
+
+Added reproducible utility:
+
+- `src/terminal_output_cast_prune.py`.
+
+Candidate generation:
+
+- output dir: `outputs/candidates/terminal_output_cast_prune_6349_79`;
+- candidate report:
+  `outputs/reports/terminal_output_cast_prune_6349_79_candidate_report.csv`.
+
+Generated 17 override candidates:
+
+- 15 passed strict labelled validation;
+- 2 skipped:
+  - `task080`: task JSON includes `31x31` grid but current validator/model path
+    is fixed at `30x30`;
+  - `task366`: task JSON includes width `32` but current validator/model path
+    is fixed at `30x30`.
+
+Validated and packaged tasks:
+
+- `task018`: `112358 -> 103358`
+- `task096`: `157946 -> 139946`
+- `task138`: `47895 -> 38895`
+- `task191`: `67986 -> 58986`
+- `task192`: `51968 -> 33968`
+- `task203`: `53188 -> 44188`
+- `task206`: `61386 -> 52386`
+- `task209`: `113834 -> 104834`
+- `task215`: `38094 -> 29094`
+- `task233`: `124902 -> 115902`
+- `task243`: `68713 -> 59713`
+- `task255`: `135493 -> 117493`
+- `task285`: `123734 -> 114734`
+- `task328`: `67093 -> 58093`
+- `task376`: `23412 -> 14412`
+
+Batch result:
+
+- total cost delta: `-162000`;
+- predicted score delta: `+2.7381083448624217`;
+- predicted total proxy: `6352.537549915868`;
+- ablation package:
+  `outputs/ablation_submissions/terminal_output_cast_prune_15_20260614/submission.zip`;
+- package SHA256:
+  `66FBF4E1D918264C5E923627E7576D682C7DC362B25F6A10F4419DBB85862CA8`;
+- inspection: `hybrid_stack`, `800` models, `400` task IDs.
+
+Safety:
+
+- This batch is graph-equivalent in decoded grid output, but it changes output
+  tensor dtype for the selected tasks. Submit as an ablation before promoting.
+- Current `outputs/submission.zip` remains the online-confirmed `6349.79`
+  baseline.
+
+Validation commands:
+
+```powershell
+python -m src.official_cost_estimator stack --stack-dir outputs\current_6349_79_stack --report outputs\reports\current_6349_79_official_static_costs_20260614.csv
+python -m src.validate_labelled_splits --model outputs\candidates\terminal_output_cast_prune_6349_79\task209_TerminalOutputCastPruned.onnx --task task\task209.json --report outputs\reports\terminal_output_cast_prune_6349_79\task209_labelled_validation.csv
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\terminal_output_cast_prune_6349_79_candidate_report.csv --output-zip outputs\ablation_submissions\terminal_output_cast_prune_15_20260614\submission.zip --report outputs\reports\terminal_output_cast_prune_15_20260614_merge_report.csv --lanes overrides
+python -m src.inspect_submission --zip outputs\ablation_submissions\terminal_output_cast_prune_15_20260614\submission.zip --layout hybrid_stack
+python -m py_compile src\terminal_output_cast_prune.py
+```
+
+## 2026-06-14 - Promote online-confirmed 6352.53 and probe remaining terminal casts
+
+- User reported the 15-task terminal output Cast prune batch scored `6352.53`
+  online.
+- Promoted that package to:
+  - `outputs/submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - `outputs/submissions/6352_53_terminal_output_cast_prune_15_submission.zip`.
+- Current promoted submission SHA256:
+  `66FBF4E1D918264C5E923627E7576D682C7DC362B25F6A10F4419DBB85862CA8`.
+- Extracted current stack to `outputs/current_6352_53_stack`.
+- Rebuilt current cost report:
+  - `outputs/reports/current_6352_53_official_static_costs_20260614.csv`;
+  - valid models: `800/800`;
+  - best-lane proxy score: `6352.53755`;
+  - best-lane proxy cost: `11398389`.
+
+### Remaining terminal Cast probes
+
+- Re-ran terminal output Cast scan on `current_6352_53_stack`.
+- Only two best-lane-impacting terminal Cast candidates remain:
+  - `task080`: `41855 -> 32855`, predicted total `6352.77965723963`;
+  - `task366`: `98352 -> 89352`, predicted total `6352.633519170794`.
+- Both candidates pass ONNX checker, forbidden-op/static-shape checks, and
+  random source-vs-candidate ORT equivalence on `50` generated `30x30`
+  one-hot inputs with max abs diff `0.0`.
+- Strict labelled validation is blocked:
+  - `task080` includes a `31x31` grid in local JSON;
+  - `task366` includes a width-`32` grid in local JSON;
+  - the current project validator and the models are fixed at `30x30`.
+
+Built isolated online probe packages:
+
+- `outputs/ablation_submissions/terminal_output_cast_probe_task080_20260614/submission.zip`
+  - SHA256:
+    `73A0BDCA3F71F445791FE2053ED51C6EDBC755F575E7086894D7C934F0E5C539`
+  - replaces only `overrides/task080.onnx`;
+  - predicted proxy: `6352.77965723963`.
+- `outputs/ablation_submissions/terminal_output_cast_probe_task366_20260614/submission.zip`
+  - SHA256:
+    `A9CC1BE8C9AF32A3D03EFF419D507C30068EBD1496ADAAA1459AB3739C33D4A5`
+  - replaces only `overrides/task366.onnx`;
+  - predicted proxy: `6352.633519170794`.
+- `outputs/ablation_submissions/terminal_output_cast_probe_task080_task366_20260614/submission.zip`
+  - SHA256:
+    `245AFBC24D789D9F707FC53511B2252A1CE053BB98806BA9DA53CD80C2CBAFAB`
+  - replaces both `task080` and `task366`;
+  - predicted proxy: `6352.875626494557`.
+
+Safety:
+
+- These two are online probes, not promoted candidates. Do not promote either
+  until online confirms them, because strict labelled validation is blocked by
+  local task shapes.
+
+### Additional checks
+
+- `src.hybrid_stack_optimizer optimize` on the promoted stack found only one
+  graph-only candidate (`task358`) with cost delta `-9`; too small to package.
+- task158 single branch pruning was tested for all `12` level/direction paint
+  branches. Every single-branch removal failed labelled validation, so no
+  task158 branch prune is usable.
+- Input dtype pruning was rejected: all `800` current stack models still use
+  float32 graph input, unlike output dtype where online has now confirmed
+  bool/fp16/u8 outputs are accepted.
+
+## 2026-06-14 - No-op and terminal Pad-input Cast pruning
+
+- User reported the current promoted package scored `6352.53` online, matching
+  the local best-lane proxy closely enough to keep using it for graph/dtype
+  cost deltas.
+- Added two conservative graph-rewrite tools:
+  - `src/noop_node_prune.py`: removes exact no-op nodes (`Identity`, same-dtype
+    `Cast`, same-shape `Reshape`, identity `Transpose`, and shape-preserving
+    `Add(0)`/`Mul(1)`/`Sub(X,0)`).
+  - `src/pad_input_cast_prune.py`: removes `Cast -> Pad -> output` when the
+    terminal `Pad` can consume the Cast source dtype directly.
+- No-op scan on current best overrides:
+  - `16` valid candidates;
+  - total best-lane official-static cost delta: `-3161`;
+  - source-vs-candidate ORT equivalence passed for all `16` candidates;
+  - `task005` and `task013` also completed full labelled validation before the
+    full labelled batch timed out, both passing.
+- Base lane checks:
+  - terminal output Cast had `7` base candidates but none affected best-lane
+    scoring because overrides remained cheaper;
+  - no-op scan on the `66` current base-winning tasks found no candidates.
+- Pad-input Cast scan:
+  - found `2` valid best-lane candidates: `task075` and `task130`;
+  - total official-static cost delta: `-5040`;
+  - both passed full labelled validation, including arc-gen:
+    - `task075`: `265/265`;
+    - `task130`: `265/265`;
+  - both passed source-vs-candidate ORT equivalence with `57+` inputs and max
+    abs diff `0.0`.
+
+Built packages:
+
+- Strict/local-validated package:
+  - `outputs/ablation_submissions/noop16_pad_input_cast2_20260614/submission.zip`;
+  - SHA256:
+    `4DF8B5FF7FCB705FBCEACAB30107D678F5F4D5757B77E0097CB2B3D338229CC3`;
+  - replacements: no-op `16` + Pad-input-Cast `2`;
+  - best-lane official-static cost: `11390188`;
+  - predicted proxy score: `6352.964185313786`.
+- Higher-risk/max probe package:
+  - `outputs/ablation_submissions/noop16_pad2_terminal080366_probe_20260614/submission.zip`;
+  - SHA256:
+    `F496FBB322EF0111C17C838D13E2D9A0E6FDC36F53AFCB46E75BAA47B83FD05D`;
+  - replacements: no-op `16` + Pad-input-Cast `2` + terminal-Cast probes
+    `task080`/`task366`;
+  - best-lane official-static cost: `11372188`;
+  - predicted proxy score: `6353.302261892474`;
+  - still a probe because `task080`/`task366` strict labelled validation is
+    blocked by local grids larger than `30x30`.
+
+Current official baseline remains unchanged:
+
+- `outputs/submission.zip`
+- SHA256:
+  `66FBF4E1D918264C5E923627E7576D682C7DC362B25F6A10F4419DBB85862CA8`
+- online-confirmed score: `6352.53`
