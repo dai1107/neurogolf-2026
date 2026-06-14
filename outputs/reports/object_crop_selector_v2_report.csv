@@ -1,4 +1,0 @@
-task_id,program,selector_type,action_type,train_pass,test_pass,arc_gen_pass,source_cost,output_cost,cost_delta,valid,failure_reason,family
-task036,largest_object_crop,largest_object,identity,2/2,,,1299,0,0,False,dynamic_bbox: 2 unique bboxes across train cases,B
-task177,crop_non_bg_h_mirror,non_background,horizontal_mirror,3/3,,,945,0,0,False,dynamic_bbox: 3 unique bboxes across train cases,K
-task300,largest_object_crop,largest_object,identity,4/4,,,1113,0,0,False,dynamic_bbox: 3 unique bboxes across train cases,B

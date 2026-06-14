@@ -1,6 +1,0 @@
-value_name,value_kind,old_shape,new_shape,old_num_elements,new_num_elements,action
-plac_idx_963,initializer,1305x150,432x150,195750,64800,sliced_rows
-expand_idx_983,initializer,1305,432,1305,432,sliced_rows
-one_NPLACS_1015,initializer,1x1305,1x432,1305,432,row_count_axes_sliced
-shp_plac_966,initializer,4,4,4,4,row_count_values_updated
-shp_up_0_1028,initializer,2,2,2,2,row_count_values_updated

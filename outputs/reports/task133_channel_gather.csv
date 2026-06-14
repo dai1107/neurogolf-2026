@@ -1,2 +1,0 @@
-task_id,source_model_path,output_model_path,source_cost,output_cost,cost_delta,source_file_size_bytes,output_file_size_bytes,file_size_delta,failure_reason
-task133,outputs\onnx\task133.onnx,outputs\candidates\task133_channel_gather\task133_ChannelGather.onnx,1406822,1074722,-332100,783434,523902,-259532,

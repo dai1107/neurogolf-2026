@@ -1,2 +1,0 @@
-task_id,table_name,shape,dtype,total_rows,observed_rows,observed_indices,index_source,consumer_node,notes
-task233,combo,3125x5,int64,3125,0,[],dynamic,,"range=[None,None]"

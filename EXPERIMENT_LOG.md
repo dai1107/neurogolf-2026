@@ -7025,3 +7025,381 @@ Current baseline:
 - `outputs/submission.zip` remains the online-confirmed `6352.53` package.
 - Do not promote either new package to `outputs/submission.zip` until the user
   chooses a package to submit and reports the online result.
+
+## 2026-06-14 - Online 6353.30 promotion and int32/FP16 batch14
+
+User feedback:
+
+- The current best probe matched the local proxy online and is now the official
+  answer.
+- This further calibrates the best-lane official-static proxy for graph/dtype
+  cost changes on the current hybrid stack.
+
+Promotion:
+
+```powershell
+Copy-Item -LiteralPath outputs\ablation_submissions\noop16_pad2_terminal080366_probe_20260614\submission.zip -Destination outputs\submission.zip -Force
+Copy-Item -LiteralPath outputs\ablation_submissions\noop16_pad2_terminal080366_probe_20260614\submission.zip -Destination outputs\submissions\submission.zip -Force
+Copy-Item -LiteralPath outputs\ablation_submissions\noop16_pad2_terminal080366_probe_20260614\submission.zip -Destination outputs\submissions\6353_30_noop16_pad2_terminal080366_submission.zip -Force
+```
+
+Current baseline:
+
+- `outputs/submission.zip`
+- SHA256:
+  `F496FBB322EF0111C17C838D13E2D9A0E6FDC36F53AFCB46E75BAA47B83FD05D`
+- extracted stack: `outputs/current_6353_30_stack`
+- cost report:
+  `outputs/reports/current_6353_30_official_static_costs_20260614.csv`
+- valid models: `800/800`
+- best-lane proxy: `6353.302261892474`
+- best-lane cost: `11372188`
+
+### int64 Cast to int32
+
+Re-ran and expanded the current-stack intermediate `Cast(... -> int64)` pass.
+
+Selected validated best-lane replacements:
+
+```text
+task005, task018, task034, task054, task071, task076, task085,
+task173, task205, task249, task285, task383, task396
+```
+
+Validation:
+
+- ONNX checker/static/forbidden-op checks passed for all selected candidates.
+- Source-vs-candidate ORT equivalence passed.
+- Full labelled validation passed for every selected task after optimizing
+  `src.validate_labelled_splits` to reuse one ONNX Runtime session per model.
+
+Batch13 result:
+
+- report:
+  `outputs/reports/current_6353_30_int64_cast_to_int32_batch13_validated.csv`
+- package:
+  `outputs/ablation_submissions/int64_cast_to_int32_batch13_20260614/submission.zip`
+- SHA256:
+  `9F45AAC3F9DB3DA0B7164CE5C620540A8541641D57FB38FC34C8C69B8017137F`
+- best-lane cost: `11372188 -> 11370588`
+- predicted proxy: `6353.302261892474 -> 6353.48266565578`
+
+### FP16 Cast probes
+
+Added:
+
+- `src/float_cast_to_float16.py`
+- `src/float_cast_group_to_float16.py`
+
+Single-Cast scan:
+
+- found `task009` override and `task182` base candidates;
+- `task009` passed source-vs-candidate ORT equivalence and full labelled
+  validation (`265/265`);
+- `task182` affected only the base lane while the override stayed cheaper, so
+  it was not packaged.
+
+Grouped-Cast scan:
+
+- found one large `task285` base-lane candidate (`-162000` cost);
+- rejected for packaging because it does not affect the best lane.
+
+### Combined batch14
+
+Combined the `13` int32 replacements with the validated `task009` FP16
+replacement.
+
+Package:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\current_6353_30_int64_float_batch14_validated.csv --output-zip outputs\ablation_submissions\int64_cast_to_int32_float16_batch14_20260614\submission.zip --report outputs\reports\int64_cast_to_int32_float16_batch14_20260614_merge.csv --lanes overrides
+python -m src.inspect_submission --zip outputs\ablation_submissions\int64_cast_to_int32_float16_batch14_20260614\submission.zip --layout hybrid_stack
+```
+
+Result:
+
+- `outputs/ablation_submissions/int64_cast_to_int32_float16_batch14_20260614/submission.zip`
+- SHA256:
+  `626BA8DD4AB15115DEF2640290972D2B050F056E21EB6622612DFAB558CC7811`
+- replacements: `14`
+- inspection: passed, `800` models, `400` task IDs
+- best-lane cost: `11372188 -> 11361588`
+- cost delta: `-10600`
+- predicted proxy: `6353.692850378846`
+- predicted score delta: `+0.39058848637159826`
+
+Decision:
+
+- Keep `outputs/submission.zip` as the online-confirmed `6353.30` baseline.
+- Submit batch14 as the next ablation candidate; promote only after online
+  score confirms the predicted gain.
+
+Checks:
+
+```powershell
+python -m py_compile src\input_cast_bypass.py src\single_cast_bypass.py src\int64_cast_to_int32.py src\noop_node_prune.py src\pad_input_cast_prune.py src\terminal_output_cast_prune.py src\float_cast_to_float16.py src\float_cast_group_to_float16.py src\validate_labelled_splits.py
+python -m src.inspect_submission --zip outputs\ablation_submissions\int64_cast_to_int32_float16_batch14_20260614\submission.zip --layout hybrid_stack
+git diff --check
+```
+
+- `py_compile` passed.
+- `inspect_submission` passed.
+- `git diff --check` reported only the LF-to-CRLF warning for
+  `src/validate_labelled_splits.py`.
+
+## 2026-06-14 - Final deep optimization from online-confirmed 6353.69
+
+User feedback:
+
+- Batch14 matched the local proxy online at about `6353.69`.
+- Treat the best-lane official-static proxy as calibrated for this final
+  graph/dtype optimization round.
+
+Promoted online-confirmed baseline:
+
+```powershell
+Copy-Item -Path outputs\ablation_submissions\int64_cast_to_int32_float16_batch14_20260614\submission.zip -Destination outputs\submission.zip -Force
+Copy-Item -Path outputs\ablation_submissions\int64_cast_to_int32_float16_batch14_20260614\submission.zip -Destination outputs\submissions\submission.zip -Force
+Copy-Item -Path outputs\ablation_submissions\int64_cast_to_int32_float16_batch14_20260614\submission.zip -Destination outputs\submissions\6353_69_int64_float_batch14_submission.zip -Force
+```
+
+Baseline:
+
+- SHA256:
+  `626BA8DD4AB15115DEF2640290972D2B050F056E21EB6622612DFAB558CC7811`
+- extracted stack: `outputs/current_6353_69_stack`
+- official-static report:
+  `outputs/reports/current_6353_69_official_static_costs_20260614.csv`
+- valid models: `800/800`
+- best-lane cost: `11361588`
+- best-lane proxy: `6353.692850378846`
+
+### Broad pass scans
+
+Scanned current stack:
+
+- `noop_node_prune`: `9` valid checker/static candidates, all no best-lane
+  impact in this stack.
+- `terminal_output_cast_prune`: `7` valid checker/static candidates, all no
+  best-lane impact.
+- `pad_input_cast_prune`: no candidates.
+- `int64_cast_to_int32 --min-cast-output-bytes 1`: `8` equivalence-valid
+  override candidates, total cost delta `-196`.
+- `single_cast_bypass`: `10` equivalence-valid override candidates, total cost
+  delta `-2346`.
+- `float_cast_to_float16`: `1` equivalence-valid override candidate,
+  `task274`, delta `-60`.
+- `float_cast_group_to_float16`: no current override candidate.
+
+Added ArgMax label-conv rewrite:
+
+```powershell
+python -m src.argmax_label_conv_rewrite --stack-dir outputs\current_6353_69_stack --output-dir outputs\candidates\current_6353_69_argmax_label_conv_rewrite --report outputs\reports\current_6353_69_argmax_label_conv_rewrite.csv --lanes overrides
+python -m src.hybrid_stack_optimizer validate-report --input-report outputs\reports\current_6353_69_argmax_label_conv_rewrite.csv --task-dir task --output-report outputs\reports\current_6353_69_argmax_label_conv_rewrite_equivalence.csv --lanes overrides --fuzz-count 20
+```
+
+- Equivalence-valid ArgMax label-conv tasks:
+  `task017`, `task040`, `task074`, `task106`, `task110`, `task114`,
+  `task117`, `task200`, `task287`, `task324`.
+- Total delta: `-17196`.
+- Rejected:
+  - `task158`: Gather out-of-bounds during equivalence;
+  - `task209`: Gather out-of-bounds during equivalence;
+  - `task376`: non-improving.
+
+Task101 specialized candidate:
+
+- Model:
+  `outputs/candidates/task101_index_int32/task101_IndexPathInt32_v2.onnx`
+- Delta: `173288 -> 166024`, cost delta `-7264`.
+- Checks:
+  - ONNX checker/static/forbidden-op passed;
+  - source-vs-candidate ORT equivalence passed on `38` inputs;
+  - labelled validation passed `266/266`.
+- Labelled report:
+  `outputs/reports/task101_IndexPathInt32_v2_labelled_validation.csv`
+
+### Strict labelled validation
+
+Validated all initially selected pass candidates:
+
+- Summary:
+  `outputs/reports/final_6353_69_candidate_labelled/summary.csv`
+- Result: `29/29` pass.
+
+Initial strict candidate report:
+
+- `outputs/reports/final_6353_69_strict_candidates_20260614.csv`
+- selected rows: `28`
+- selected task IDs:
+  `task005`, `task017`, `task018`, `task034`, `task040`, `task054`,
+  `task074`, `task076`, `task085`, `task088`, `task101`, `task106`,
+  `task110`, `task114`, `task117`, `task177`, `task200`, `task221`,
+  `task239`, `task274`, `task285`, `task287`, `task299`, `task324`,
+  `task339`, `task370`, `task394`, `task396`
+- total delta at that stage: `-26160`
+
+Initial final merge:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\submission.zip --candidate-report outputs\reports\final_6353_69_strict_candidates_20260614.csv --output-zip outputs\ablation_submissions\final_6353_69_deep_opt_20260614\submission.zip --report outputs\reports\final_6353_69_deep_opt_20260614_merge.csv --lanes overrides
+python -m src.official_cost_estimator stack --stack-dir outputs\final_6353_69_deep_opt_stack --report outputs\reports\final_6353_69_deep_opt_official_static_costs_20260614.csv
+```
+
+- Cost: `11335428`
+- Proxy: `6354.664018`
+
+### Iterative int64 compression
+
+Added:
+
+- `src/iterative_int64_cast_to_int32.py`
+
+Purpose:
+
+- Try one `Cast(... -> int64)` to int32 at a time.
+- Run source-vs-candidate ORT equivalence immediately.
+- Accept only passing rewrites and repeat.
+- Skip checker-valid but ORT-invalid downstream-kernel cases.
+
+Manual iterative rounds:
+
+- iter2 report:
+  `outputs/reports/final_6354_66_int64_cast_to_int32_min1_equivalence.csv`
+- iter2 labelled:
+  `outputs/reports/final_6354_66_int64_iter2_labelled/summary.csv`
+- iter3 report:
+  `outputs/reports/final_6354_66_int64_iter3_equivalence.csv`
+- iter3 labelled:
+  `outputs/reports/final_6354_66_int64_iter3_labelled/summary.csv`
+- Both rounds: `8/8` override candidates labelled pass each round.
+
+Bulk iterative run:
+
+```powershell
+python -m src.iterative_int64_cast_to_int32 --stack-dir outputs\final_6354_66_deep_opt_int64iter3_stack --task-dir task --output-dir outputs\candidates\final_6354_66_iterative_int64_bulk --report outputs\reports\final_6354_66_iterative_int64_bulk.csv --step-report outputs\reports\final_6354_66_iterative_int64_bulk_steps.csv --lanes overrides --task-ids task005,task018,task034,task054,task076,task085,task285,task396 --min-cast-output-bytes 1 --max-steps 80 --fuzz-count 20
+```
+
+- Accepted steps: `120`
+- Valid task-level candidates: `7`
+- Total delta: `-1168`
+- Labelled validation:
+  `outputs/reports/final_6354_66_iterative_int64_bulk_labelled/summary.csv`
+- Labelled result: `7/7` pass.
+
+Failed-recovery run:
+
+```powershell
+python -m src.iterative_int64_cast_to_int32 --stack-dir outputs\final_6354_67_deep_opt_int64bulk_stack --task-dir task --output-dir outputs\candidates\final_6354_67_iterative_int64_failed_recovery --report outputs\reports\final_6354_67_iterative_int64_failed_recovery.csv --step-report outputs\reports\final_6354_67_iterative_int64_failed_recovery_steps.csv --lanes overrides --task-ids task218,task219,task301,task324,task343 --min-cast-output-bytes 1 --max-steps 80 --fuzz-count 20
+```
+
+- Accepted steps: `0`
+- Decision: no safe recovery candidates; keep rejected.
+
+### Second-order scans on bulk stack
+
+Scanned `outputs/final_6354_67_deep_opt_int64bulk_stack`:
+
+- `single_cast_bypass`: `12` checker/static candidates, `3` equivalence-valid:
+  `task054`, `task101`, `task299`; total delta `-920`.
+- `float_cast_to_float16`: `task274`, delta `-60`, equivalence-valid.
+- `float_cast_group_to_float16`: no candidates.
+- `argmax_label_conv_rewrite`: task158/task209 still failed equivalence.
+
+Labelled validation:
+
+- `outputs/reports/final_6354_67_second_order_labelled/summary.csv`
+- Result: `4/4` pass.
+
+Final merges:
+
+```powershell
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\ablation_submissions\final_6354_67_deep_opt_int64bulk_20260614\submission.zip --candidate-report outputs\reports\final_6354_67_single_cast_bypass_equivalence.csv --output-zip outputs\ablation_submissions\final_6354_68_deep_opt_single2_20260614\submission.zip --report outputs\reports\final_6354_68_deep_opt_single2_20260614_merge.csv --lanes overrides
+python -m src.hybrid_stack_optimizer merge --base-zip outputs\ablation_submissions\final_6354_68_deep_opt_single2_20260614\submission.zip --candidate-report outputs\reports\final_6354_67_float_cast_to_float16_equivalence.csv --output-zip outputs\ablation_submissions\final_6354_68_deep_opt_all_20260614\submission.zip --report outputs\reports\final_6354_68_deep_opt_all_20260614_merge.csv --lanes overrides
+```
+
+Final package:
+
+- `outputs/ablation_submissions/final_6354_68_deep_opt_all_20260614/submission.zip`
+- copied to:
+  `outputs/submissions/6354_70_final_deep_opt_submission.zip`
+- SHA256:
+  `4674E19EC12033F01F3F89FF2D1C502B43C002D95F82257D911CD68725CDD5EA`
+- inspection: passed, `800` models, `400` task IDs
+- final official-static report:
+  `outputs/reports/final_6354_68_deep_opt_all_official_static_costs_20260614.csv`
+- valid models: `800/800`
+- best-lane cost: `11333080`
+- predicted proxy: `6354.703368`
+- predicted delta from online-confirmed baseline: about `+1.0105`
+
+Checks:
+
+```powershell
+python -m py_compile src\iterative_int64_cast_to_int32.py src\argmax_label_conv_rewrite.py src\int64_cast_to_int32.py src\single_cast_bypass.py src\float_cast_to_float16.py src\validate_labelled_splits.py
+python -m src.inspect_submission --zip outputs\submissions\6354_70_final_deep_opt_submission.zip --layout hybrid_stack
+git diff --check
+```
+
+- `py_compile` passed.
+- `inspect_submission` passed.
+- `git diff --check` reported only LF-to-CRLF warnings for existing touched
+  files; no whitespace errors.
+
+Decision:
+
+- Keep `outputs/submission.zip` as the online-confirmed `6353.69` baseline
+  until the final package is submitted and confirmed.
+- Submit `outputs/submissions/6354_70_final_deep_opt_submission.zip` as the
+  final high-confidence candidate.
+
+## 2026-06-14 - Promote online-confirmed final package and clean artifacts
+
+User feedback:
+
+- The final `6354.70` package matched the local proxy online.
+- Treat it as the official group.
+
+Promotion:
+
+```powershell
+Copy-Item -Path outputs\submissions\6354_70_final_deep_opt_submission.zip -Destination outputs\submission.zip -Force
+Copy-Item -Path outputs\submissions\6354_70_final_deep_opt_submission.zip -Destination outputs\submissions\submission.zip -Force
+python -m src.inspect_submission --zip outputs\submission.zip --layout hybrid_stack
+```
+
+Result:
+
+- `outputs/submission.zip`
+- `outputs/submissions/submission.zip`
+- `outputs/submissions/6354_70_final_deep_opt_submission.zip`
+- SHA256:
+  `4674E19EC12033F01F3F89FF2D1C502B43C002D95F82257D911CD68725CDD5EA`
+- inspection: passed, `800` models, `400` task IDs
+
+Cleanup:
+
+- Removed generated intermediate artifacts under `outputs/`:
+  - candidate model directories;
+  - extracted current/final/reference stacks;
+  - ablation package directories;
+  - old named submission zips;
+  - debug ONNX files;
+  - historical reports and labelled validation subdirectories.
+- Kept only:
+  - `outputs/submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - `outputs/submissions/6354_70_final_deep_opt_submission.zip`;
+  - `outputs/reports/final_6354_68_deep_opt_all_20260614_merge.csv`;
+  - `outputs/reports/final_6354_68_deep_opt_all_official_static_costs_20260614.csv`.
+
+Post-clean check:
+
+```powershell
+python -m src.inspect_submission --zip outputs\submission.zip --layout hybrid_stack
+Get-FileHash -Algorithm SHA256 outputs\submission.zip
+```
+
+- Inspection still passed.
+- SHA256 remained
+  `4674E19EC12033F01F3F89FF2D1C502B43C002D95F82257D911CD68725CDD5EA`.

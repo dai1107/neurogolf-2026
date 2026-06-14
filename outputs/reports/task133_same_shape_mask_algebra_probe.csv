@@ -1,2 +1,0 @@
-task_id,formula,train_pass,test_pass,arc_gen_pass,num_conditions,num_colors_used,risk_score,builder_candidate_path,failure_reason
-task133,Infer the unique two-color template with an isolated marker cell; copy each template offset to same-marker square target blocks using the target seed color.,4/4,1/1,262/262,5,9,medium,outputs\candidates\task133_mask_algebra\task133_Task133MaskAlgebra.onnx,

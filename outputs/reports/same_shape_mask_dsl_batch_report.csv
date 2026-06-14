@@ -1,1 +1,0 @@
-task_id,formula,num_masks,num_colors_used,train_pass,test_pass,arc_gen_pass,source_cost,output_cost,cost_delta,output_model_path,valid,failure_reason

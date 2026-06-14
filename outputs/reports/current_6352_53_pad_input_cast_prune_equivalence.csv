@@ -1,3 +1,0 @@
-task_id,estimated_cost_delta,checker_passed,forbidden_ops_passed,static_shapes_passed,equivalence_passed,equivalence_inputs_checked,equivalence_max_abs_diff,candidate_valid,failure_reason
-task075,-4680,True,True,True,True,58,0.0,True,
-task130,-360,True,True,True,True,57,0.0,True,

@@ -3439,3 +3439,165 @@ Current official baseline remains unchanged:
 - SHA256:
   `66FBF4E1D918264C5E923627E7576D682C7DC362B25F6A10F4419DBB85862CA8`
 - online-confirmed score: `6352.53`
+
+## 2026-06-14 - Promote online-confirmed 6353.30 and build batch14 probe
+
+- User confirmed both previous probe packages matched the local proxy online.
+- Promoted the best package
+  `outputs/ablation_submissions/noop16_pad2_terminal080366_probe_20260614/submission.zip`
+  as the official baseline:
+  - `outputs/submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - `outputs/submissions/6353_30_noop16_pad2_terminal080366_submission.zip`.
+- Current official SHA256:
+  `F496FBB322EF0111C17C838D13E2D9A0E6FDC36F53AFCB46E75BAA47B83FD05D`.
+- Extracted current stack:
+  `outputs/current_6353_30_stack`.
+- Current official-static report:
+  `outputs/reports/current_6353_30_official_static_costs_20260614.csv`.
+- Current best-lane proxy:
+  - score: `6353.302261892474`;
+  - cost: `11372188`;
+  - valid models: `800/800`.
+
+### New validated batch14 candidate
+
+- Added two FP16 discovery tools:
+  - `src/float_cast_to_float16.py`;
+  - `src/float_cast_group_to_float16.py`.
+- Optimized `src/validate_labelled_splits.py` to reuse one ONNX Runtime session
+  per model, preserving strict grid/padding/confidence checks while making
+  large labelled batches practical.
+- Batch14 contents:
+  - int64-to-int32 replacements:
+    `task005`, `task018`, `task034`, `task054`, `task071`, `task076`,
+    `task085`, `task173`, `task205`, `task249`, `task285`, `task383`,
+    `task396`;
+  - FP16 replacement: `task009`;
+  - all `14` replacements passed ONNX checker/static/forbidden-op checks,
+    source-vs-candidate ORT equivalence, and labelled train/test/arc-gen
+    validation.
+
+Package:
+
+- `outputs/ablation_submissions/int64_cast_to_int32_float16_batch14_20260614/submission.zip`;
+- SHA256:
+  `626BA8DD4AB15115DEF2640290972D2B050F056E21EB6622612DFAB558CC7811`;
+- merge report:
+  `outputs/reports/int64_cast_to_int32_float16_batch14_20260614_merge.csv`;
+- candidate report:
+  `outputs/reports/current_6353_30_int64_float_batch14_validated.csv`;
+- inspection: passed, `800` models, `400` task IDs.
+
+Predicted impact:
+
+- best-lane cost: `11372188 -> 11361588`;
+- cost delta: `-10600`;
+- proxy score: `6353.302261892474 -> 6353.692850378846`;
+- score delta: `+0.39058848637159826`.
+
+Rejected/no-impact findings:
+
+- `task182` single FP16 candidate passed equivalence but affected only the
+  base lane; overrides remained cheaper, so it has no best-lane score impact.
+- grouped FP16 found a large `task285` base-lane candidate, but overrides
+  remained the best lane, so it was not packaged.
+
+## 2026-06-14 - Final full-stack deep optimization candidate
+
+- User confirmed batch14 matched the proxy online at about `6353.69`; the
+  online-confirmed package was promoted before this final round:
+  - `outputs/submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - `outputs/submissions/6353_69_int64_float_batch14_submission.zip`;
+  - SHA256:
+    `626BA8DD4AB15115DEF2640290972D2B050F056E21EB6622612DFAB558CC7811`;
+  - best-lane proxy: `6353.692850378846`;
+  - best-lane cost: `11361588`.
+
+Final-round work:
+
+- Added `src/argmax_label_conv_rewrite.py` to replace eligible
+  `ArgMax(axis=1, keepdims=1) -> Cast` label decoders with a 1x1 weighted
+  `Conv`, avoiding int64 label-grid memory when strict equivalence holds.
+- Added `src/iterative_int64_cast_to_int32.py` for this last compression pass:
+  it converts one int64 Cast at a time, immediately runs source-vs-candidate
+  ORT equivalence, accepts only passing rewrites, and repeats.
+- Built a task101-specific `IndexPathInt32_v2` candidate that converts the
+  localized index arithmetic path to int32 while leaving unsafe scatter/index
+  consumers unchanged.
+
+Validated accepted candidate groups:
+
+- `task101` `IndexPathInt32_v2`: cost delta `-7264`, labelled `266/266`.
+- ArgMax label-conv rewrites:
+  `task017`, `task040`, `task074`, `task106`, `task110`, `task114`,
+  `task117`, `task200`, `task287`, `task324`;
+  all passed source-vs-candidate equivalence and full labelled validation.
+- Dtype/cast rewrites:
+  initial int64, single-cast, and float16 candidates were all
+  equivalence-gated and labelled-gated before packaging.
+- Iterative int64 bulk pass accepted `120` individual Cast rewrites across
+  `7` tasks after ORT equivalence, then passed full labelled validation for
+  the final task models.
+- Rejected unsafe candidates included:
+  - ArgMax task158/task209, both still failed ORT equivalence;
+  - OneHot/downstream-kernel int32 or float consumer cases for task218,
+    task219, task301, task324, task340, task343, and similar probes.
+
+Final candidate package:
+
+- `outputs/submissions/6354_70_final_deep_opt_submission.zip`
+- SHA256:
+  `4674E19EC12033F01F3F89FF2D1C502B43C002D95F82257D911CD68725CDD5EA`
+- Source build:
+  `outputs/ablation_submissions/final_6354_68_deep_opt_all_20260614/submission.zip`
+- Final stack:
+  `outputs/final_6354_68_deep_opt_all_stack`
+- Final official-static report:
+  `outputs/reports/final_6354_68_deep_opt_all_official_static_costs_20260614.csv`
+- Inspection: passed, `800` models, `400` task IDs.
+- Official-static validity: `800/800`.
+
+Predicted impact versus the online-confirmed `6353.69` baseline:
+
+- best-lane cost: `11361588 -> 11333080`
+- cost delta: `-28508`
+- proxy score: `6353.692850378846 -> 6354.703368`
+- predicted score delta: about `+1.0105`
+
+Checks:
+
+- `python -m py_compile src\iterative_int64_cast_to_int32.py src\argmax_label_conv_rewrite.py src\int64_cast_to_int32.py src\single_cast_bypass.py src\float_cast_to_float16.py src\validate_labelled_splits.py`
+  passed.
+- `python -m src.inspect_submission --zip outputs\submissions\6354_70_final_deep_opt_submission.zip --layout hybrid_stack`
+  passed.
+- `git diff --check` reported only LF-to-CRLF warnings for existing touched
+  files; no whitespace errors.
+
+Decision:
+
+- Keep `outputs/submission.zip` as the online-confirmed `6353.69` official
+  baseline unless the final package is submitted and confirmed.
+- Use `outputs/submissions/6354_70_final_deep_opt_submission.zip` as the final
+  high-confidence pre-deadline candidate.
+
+## 2026-06-14 - Promote online-confirmed 6354.70 and clean outputs
+
+- User confirmed the final `6354.70` package matched the proxy online.
+- Promoted it as the official group:
+  - `outputs/submission.zip`;
+  - `outputs/submissions/submission.zip`;
+  - retained named backup:
+    `outputs/submissions/6354_70_final_deep_opt_submission.zip`.
+- Official SHA256:
+  `4674E19EC12033F01F3F89FF2D1C502B43C002D95F82257D911CD68725CDD5EA`.
+- Submission inspection after promotion: passed, `800` models, `400` task IDs.
+- Cleaned `outputs/` intermediate artifacts:
+  - removed candidate folders, extracted stacks, ablation packages, old
+    submissions, debug ONNX files, and historical reports;
+  - retained only the official submission zip, final named submission backup,
+    and the final merge/cost reports.
+- Remaining final reports:
+  - `outputs/reports/final_6354_68_deep_opt_all_20260614_merge.csv`;
+  - `outputs/reports/final_6354_68_deep_opt_all_official_static_costs_20260614.csv`.

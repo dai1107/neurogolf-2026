@@ -8,10 +8,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import onnxruntime as ort
 
 from .arc_io import load_task
-from .validate_onnx_model import validate_case
+from .encoding import DEFAULT_SHAPE, find_zero_confidence_cells, grid_to_onehot, onehot_to_grid
+from .validate_onnx_model import find_nonzero_padding_cells
 
 
 ort.set_default_logger_severity(3)
@@ -33,6 +35,80 @@ def _first_mismatch_text(mismatches: list[dict[str, int]]) -> str:
     return json.dumps(mismatches[0], sort_keys=True)
 
 
+def _grid_size(grid: list[list[int]]) -> tuple[int, int]:
+    if not grid:
+        raise ValueError("grid must contain at least one row")
+    width = len(grid[0])
+    if width == 0:
+        raise ValueError("grid rows must contain at least one cell")
+    for row_index, row in enumerate(grid):
+        if len(row) != width:
+            raise ValueError(
+                f"grid must be rectangular: row 0 has width {width}, "
+                f"row {row_index} has width {len(row)}"
+            )
+    return len(grid), width
+
+
+def _session_io(session: ort.InferenceSession) -> tuple[str, str]:
+    inputs = session.get_inputs()
+    outputs = session.get_outputs()
+    if len(inputs) != 1:
+        raise ValueError(f"model must have exactly one input, got {len(inputs)}")
+    if len(outputs) != 1:
+        raise ValueError(f"model must have exactly one output, got {len(outputs)}")
+    return inputs[0].name, outputs[0].name
+
+
+def _validate_case_with_session(
+    session: ort.InferenceSession,
+    input_name: str,
+    output_name: str,
+    input_grid: list[list[int]],
+    expected_grid: list[list[int]],
+) -> dict[str, object]:
+    expected_height, expected_width = _grid_size(expected_grid)
+    input_tensor = grid_to_onehot(input_grid)
+    result = session.run([output_name], {input_name: input_tensor.astype(np.float32, copy=False)})
+    output_tensor = result[0]
+    if output_tensor.shape != DEFAULT_SHAPE:
+        raise ValueError(f"output tensor shape must be {DEFAULT_SHAPE}, got {output_tensor.shape}")
+    if not np.isfinite(output_tensor).all():
+        raise ValueError("output tensor contains NaN or Inf")
+    actual_grid = onehot_to_grid(output_tensor, expected_height, expected_width)
+
+    mismatches: list[dict[str, int]] = []
+    for row_index, row in enumerate(expected_grid):
+        for col_index, expected_color in enumerate(row):
+            actual_color = actual_grid[row_index][col_index]
+            if actual_color != expected_color:
+                mismatches.append(
+                    {
+                        "row": row_index,
+                        "col": col_index,
+                        "expected": expected_color,
+                        "actual": actual_color,
+                    }
+                )
+
+    zero_confidence_cells = find_zero_confidence_cells(
+        output_tensor,
+        expected_height,
+        expected_width,
+    )
+    return {
+        "passed": not mismatches,
+        "num_mismatched_cells": len(mismatches),
+        "mismatches": mismatches,
+        "zero_confidence_cells": zero_confidence_cells,
+        "nonzero_padding_cells": find_nonzero_padding_cells(
+            output_tensor,
+            expected_height,
+            expected_width,
+        ),
+    }
+
+
 def validate_labelled_splits(
     model_path: str,
     task_path: str,
@@ -40,6 +116,8 @@ def validate_labelled_splits(
 ) -> dict[str, Any]:
     """Write per-case strict validation results for labelled task splits."""
     task = load_task(task_path)
+    session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+    input_name, output_name = _session_io(session)
     rows: list[dict[str, Any]] = []
     split_counts: dict[str, dict[str, int]] = {}
 
@@ -50,7 +128,13 @@ def validate_labelled_splits(
         for case_index, case in enumerate(cases):
             if "output" not in case:
                 continue
-            result = validate_case(model_path, case["input"], case["output"])
+            result = _validate_case_with_session(
+                session,
+                input_name,
+                output_name,
+                case["input"],
+                case["output"],
+            )
             zero_confidence = result["zero_confidence_cells"]
             nonzero_padding = result["nonzero_padding_cells"]
             passed = (

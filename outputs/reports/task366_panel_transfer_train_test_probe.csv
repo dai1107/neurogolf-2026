@@ -1,2 +1,0 @@
-task_id,candidate_path,num_rules,num_specs,num_source_patterns,num_target_patterns,train_pass,test_pass,arc_gen_pass,formula,risk_level,failure_reason
-task366,outputs\candidates\task366_panel_transfer\task366_Task366PanelTransferTrainTest.onnx,488,109,488,488,3/3,1/1,262/262,Compile finite panel-level marker-object transfer templates from labelled source objects and sparse target marker placements.,medium-high,
